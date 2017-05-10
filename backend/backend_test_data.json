@@ -130,7 +130,18 @@
       "limitPerPlayer": 2
     }
   },
-  "notifications": {},
+  "notifications": {
+    "notification-$(ident)s-abc": {
+        "groupId": "group-%(ident)s",
+        "message": "hello",
+        "app": true,
+        "vibrate": false,
+        "sound": "none",
+        "destination": "https://google.com",
+        "sendTime": 1494381500,
+        "icon": "none"
+    }
+  },
   "rewards": {
     "reward-%(ident)s-bleck": {
       "a": true,
