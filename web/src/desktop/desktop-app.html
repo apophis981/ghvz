@@ -1,0 +1,84 @@
+
+<dom-module id="ghvz-desktop-app">
+  <script>
+    // Not sure why this HTMLImports.whenReady is really needed.
+    // Something about polymer initialization order.
+    // I think we're not supposed to need this.
+    HTMLImports.whenReady(() => {
+      Polymer({
+        is: 'ghvz-desktop-app',
+
+        properties: {
+          bridge: Object,
+          isAdmin: Boolean,
+          database: Object,
+          user: Object,
+          game: Object,
+          player: Object,
+          page: String,
+
+          showMainPage: {
+            type: Boolean,
+            value: false,
+          },
+        },
+
+        observers: [
+          'onPageChanged_(page)',
+        ],
+
+        onPageChanged_: function() {
+          this.showMainPage_ = this.page.startsWith('main');
+        },
+      });
+    });
+  </script>
+  <style>
+    :host {
+      display: block;
+      position: relative;
+      background-color: #f4f4f4;
+      padding: 8px;
+      height: 100%;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    #notifications {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 2;
+      max-width: 50%;
+    }
+  </style>
+  <template>
+    <ghvz-unseen-notifications
+        id="notifications"
+        bridge="[[bridge]]"
+        categories-by-id="[[game.notificationCategoriesById]]"
+        categories="[[game.notificationCategories]]"
+        player="[[player]]">
+    </ghvz-unseen-notifications>
+    <template is="dom-if" if="[[showMainPage_]]">
+      <ghvz-desktop-main-page
+        bridge="[[bridge]]"
+        database="[[database]]"
+        game="[[game]]"
+        user="[[user]]"
+        player="[[player]]">
+      </ghvz-desktop-main-page>
+    </template>
+    <template is="dom-if" if="[[!showMainPage_]]">
+      <ghvz-display-page
+          bridge="[[bridge]]"
+          is-admin="[[isAdmin]]"
+          database="[[database]]"
+          user="[[user]]"
+          game="[[game]]"
+          player="[[player]]"
+          player-id="[[playerId]]"
+          page="[[page]]">
+      </ghvz-display-page>
+    </template>
+  </template>
+</dom-module>

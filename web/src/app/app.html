@@ -1,0 +1,366 @@
+<style>
+body {
+  font-family: 'Roboto', 'Noto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* whoever designed the default paper-menu needs to be shot */
+paper-menu,
+paper-listbox {
+  padding: 0 !important;
+}
+paper-menu .iron-selected,
+paper-listbox .iron-selected {
+  font-weight: inherit !important;
+}
+paper-menu paper-item,
+paper-listbox paper-item {
+  min-height: 36px !important;
+  white-space: nowrap;
+}
+paper-listbox paper-item::before,
+paper-listbox paper-item::after,
+paper-menu paper-item::before,
+paper-menu paper-item::after {
+  display: none;
+}
+paper-listbox paper-item:hover,
+paper-menu paper-item:hover {
+  background-color: #F0F0F0 !important;
+  cursor: pointer;
+}
+
+paper-input-container {
+  padding: 0 !important;
+}
+</style>
+
+<dom-module id="ghvz-app">
+<script>
+  // Not sure why this HTMLImports.whenReady is really needed.
+  // Something about polymer initialization order.
+  // I think we're not supposed to need this.
+  HTMLImports.whenReady(() => {
+    Polymer({
+      is: 'ghvz-app',
+
+      properties: {
+        env: {
+          type: String,
+          value: () => {
+            var env = Utils.getParameterByName('env');
+            var defaultEnv = 'fake';
+            if (window.location.hostname == "dev.googlehvz.com")
+              defaultEnv = 'env';
+            if (window.location.hostname == "googlehvz.com")
+              defaultEnv = 'prod';
+            if (!env)
+              env = defaultEnv;
+            return env;
+          },
+        },
+
+        bridge: {
+          type: Object,
+        },
+
+        isDesktop: {
+          type: Boolean,
+          value: () => !window.matchMedia("only screen and (max-width: 760px)").matches,
+        },
+
+        showSignInButton: {
+          type: Boolean,
+          value: false,
+        },
+
+        showLoadingSpinner: {
+          type: Boolean,
+          value: true,
+        },
+
+        database: {
+          type: Object,
+          value: () => ({}),
+        },
+
+        userId: {
+          type: String,
+          value: undefined,
+        },
+
+        gameId: {
+          type: String,
+          value: null,
+        },
+
+        playerId: {
+          type: String,
+          value: null,
+        },
+
+        user: Object,
+
+        game: Object,
+
+        // Up to the components below us to figure out the player, because a
+        // polymer bug with array-selector doesnt let us do it here
+        // player: Object
+
+        page: {
+          type: String,
+          value: '',
+        },
+      },
+
+      observers: [
+        'onUserIdChanged_(userId, database.users.length)',
+        'onGameIdChanged_(bridge, gameId, database.games.splices)',
+        // 'onPlayerIdChanged_(playerId, game.playersById)'
+        'autoNavigate_(database.games.splices)',
+        'autoNavigate_(database.users.splices)',
+        'autoNavigate_(game.players.length)',
+        'autoNavigate_(game.players.splices)',
+        'autoNavigate_(user.players.length)',
+        'autoNavigate_(user.players.splices)',
+        'autoNavigate_(userId)',
+        'autoNavigate_(user)',
+        'autoNavigate_(gameId)',
+        'autoNavigate_(game)',
+        'autoNavigate_(playerId)',
+      ],
+
+      listeners: {
+        'ghvz-sign-in': 'signIn_',
+        'ghvz-sign-out': 'signOut_',
+        'ghvz-open-page': 'handleOpenPage_',
+        'ghvz-open-drawer': 'openDrawer_',
+        'ghvz-close-drawer': 'closeDrawer_',
+        'ghvz-select-game': 'handleSelectGame_',
+      },
+
+      onUserIdChanged_() {
+        this.showLoadingSpinner = false;
+        if (this.userId == null) {
+          this.showSignInButton = true;
+        }
+        if (!this.user) {
+          let user = this.database.users.find(user => user.id == this.userId);
+          if (user) {
+            this.$.userSelector.select(user);
+          }
+        }
+      },
+
+      onGameIdChanged_() {
+        if (!this.game) {
+          let game = this.database.games.find(game => game.id == this.gameId);
+          if (game) {
+            this.bridge.listenToGame(this.gameId);
+            this.$.gameSelector.select(game);
+          }
+        }
+      },
+
+      handleSelectGame_(e) {
+        this.gameId = e.detail.gameId;
+      },
+
+      // Because of a polymer array-selector bug, we can't do this =(
+      // onPlayerIdChanged_() {
+      //   this.$.playerSelector.select(
+      //       this.game.players.find(player => player.id == this.playerId));
+      // },
+
+      attached() {
+        this.bridge = this.makeBridge_();
+        this.bridge.attemptAutoSignIn()
+            .then((userId) => this.userId = userId)
+            .catch((e) => {
+              this.userId = null
+            });
+        window.onpopstate = this.handlePopState_.bind(this);
+      },
+
+      makeBridge_() {
+        return new Bridge(this.env, this.makeBridgeDelegate_());
+      },
+
+      makeBridgeDelegate_: function() {
+        return new BatchedPolymerWriter(this, 'database');
+      },
+
+      computeShowSignInButton_(userId, user) {
+        return !userId || !user;
+      },
+
+      signIn_: function() {
+        this.bridge.signIn()
+            .then((userId) => this.userId = userId);
+      },
+
+      signOut_() {
+        this.bridge.signOut();
+      },
+
+      // Called on any change in userId, gameId, playerId, or games.splices.
+      autoNavigate_() {
+        let [, page] = this.extractUrl_();
+        if (this.userId && page != 'createGame' && !this.gameId) {
+          // Try to figure out what game to put them in.
+          let [gameId, ] = this.extractUrl_();
+          if (gameId) {
+            let game = this.database.gamesById[gameId];
+            if (game) {
+              // Async so we dont accidentally cause calls into firebaselistener
+              // while we're already reacting to something from it.
+              this.async(() => {
+                this.gameId = game.id;
+              });
+              return;
+            } else {
+              // They specified a game number that doesnt exist, or maybe it
+              // hasnt been loaded yet. Either way, lets not assume they want
+              // to auto-choose a different game.
+            }
+          } else {
+            // They specified no game in the url. Auto choose one.
+            let userPlayer = this.user && this.user.players.slice(-1)[0];
+            if (userPlayer) {
+              // Async so we dont accidentally cause calls into firebaselistener
+              // while we're already reacting to something from it.
+              this.async(() => {
+                this.gameId = userPlayer.gameId;
+              });
+              return;
+            } else {
+              // They dont have any user players, so lets just choose a random game.
+              if (this.database.games.length) {
+                // Async so we dont accidentally cause calls into firebaselistener
+                // while we're already reacting to something from it.
+                this.async(() => {
+                  this.gameId = this.database.games[0].id;
+                });
+              } else {
+                // No games, abort.
+              }
+            }
+          }
+        }
+        if (this.user && this.gameId && !this.playerId) {
+          // Try to figure out their player, if they have one.
+          let userPlayer = this.user.players.find(player => player.gameId == this.gameId);
+          if (userPlayer) {
+            // Async so we dont accidentally cause calls into firebaselistener
+            // while we're already reacting to something from it.
+            this.async(() => {
+              this.playerId = userPlayer.id;
+            });
+            return;
+          }
+        }
+        if (this.userId && !this.page && page == 'createGame') {
+          // Async so we dont accidentally cause calls into firebaselistener
+          // while we're already reacting to something from it.
+          this.async(() => {
+            this.page = page;
+            window.history.replaceState({}, "", this.assembleUrl_(null, this.page));
+          });
+          return;
+        }
+        if (this.userId && this.game && !this.page) {
+          // Async so we dont accidentally cause calls into firebaselistener
+          // while we're already reacting to something from it.
+          this.async(() => {
+            if (page) {
+              this.page = page;
+            } else {
+              this.page = 'main';
+              window.history.replaceState({}, "", this.assembleUrl_(this.gameId, this.page));
+            }
+          });
+          return;
+        }
+      },
+
+      assembleUrl_(gameId, page) {
+        let url = "";
+        if (gameId)
+          url += "/" + gameId;
+        url += "/" + page;
+        let queryStringMatch = /\?(.*)/.exec(window.location.href);
+        if (queryStringMatch)
+          url += "?" + queryStringMatch[1];
+        return url;
+      },
+
+      handleOpenPage_(e) {
+        this.page = e.detail.page;
+        window.history.pushState(
+            {page: this.page}, "", this.assembleUrl_(this.gameId, this.page));
+      },
+
+      handlePopState_(e) {
+        this.page = e.state && e.state.page || 'main';
+      },
+
+      extractUrl_() {
+        let initialUrl = window.location.pathname;
+        let nonGamePageMatch = /^\/(\w+)$/.exec(initialUrl);
+        if (nonGamePageMatch) {
+          let page = nonGamePageMatch[1];
+          return [null, page];
+        }
+        let gamePageMatch = /^\/(game-[\w-]+)(?:\/([\w/-]+))?/.exec(initialUrl);
+        if (gamePageMatch) {
+          let gameNumber = gamePageMatch[1];
+          if (!gamePageMatch[2]) {
+            return [gameNumber, null, null];
+          }
+          let page = gamePageMatch[2];
+          return [gameNumber, page];
+        }
+        return [null, null, null];
+      },
+
+      openDrawer_() {
+        this.$.inner.openDrawer();
+      },
+
+      closeDrawer_() {
+        this.$.inner.closeDrawer();
+      },
+    });
+  });
+</script>
+<style>
+  :host {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+<template>
+  <array-selector id="userSelector" items="[[database.users]]" selected="{{user}}"></array-selector>
+  <array-selector id="gameSelector" items="[[database.games]]" selected="{{game}}"></array-selector>
+  <!-- Because of a polymer bug, this doesnt work:
+      <array-selector id="playerSelector" items="[[game.players]]" selected="{{player}}"></array-selector>
+      so instead we have to make a component below us do it.
+      That's actually why ghvz-app-inner was made in the first place... -->
+  <ghvz-app-inner
+      id="inner"
+      bridge="[[bridge]]"
+      is-desktop="[[isDesktop]]"
+      env="[[env]]"
+      database="[[database]]"
+      user="[[user]]"
+      game="[[game]]"
+      player-id="[[playerId]]"
+      page="[[page]]"
+      show-sign-in-button="[[showSignInButton]]"
+      show-loading-spinner="[[showLoadingSpinner]]">
+  </ghvz-app-inner>
+</template>
+</dom-module>

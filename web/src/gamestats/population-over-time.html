@@ -1,0 +1,71 @@
+<dom-module id="ghvz-population-over-time">
+<script>
+  // Not sure why this HTMLImports.whenReady is really needed.
+  // Something about polymer initialization order.
+  // I think we're not supposed to need this.
+  HTMLImports.whenReady(() => {
+    Polymer({
+      is: 'ghvz-population-over-time',
+
+      properties: {
+        game: Object,
+
+        chartLoaded: {
+          type: Boolean,
+          value: undefined, // When this becomes not-undefined, the observer will fire
+        },
+      },
+
+      observers: [
+        'drawPopulationOverTimeChart(chartLoaded, game)',
+      ],
+
+      setChartLoaded() {
+        this.chartLoaded = true;
+      },
+
+      drawPopulationOverTimeChart(chartLoaded, game) {
+        // console.log(this.game);
+        // for (let player of this.game.players) {
+        //   console.log("player", player.id, "lives", player.lives, "infections", player.infections);
+        // }
+
+        var data = google.visualization.arrayToDataTable([
+          ['Day', 'Human', 'Zed'],
+          ['0',  199,      1],
+          ['1',  190,      10],
+          ['2',  180,      20],
+          ['3',  150,      50],
+          ['4',  130,      70],
+          ['5',  60,       140],
+          ['6',  50,       150],
+          ['7',  0,      200]
+          ]);
+
+        var options = {
+          title: "Population Over Time",
+          curveType: 'function',
+          legend: { position: 'bottom' }
+        };
+
+        var chart = new google.visualization.LineChart(
+          this.$.population_over_time_chart);
+
+        chart.draw(data, options);
+
+        // The following makes Google Charts responsive and will resize the chart
+        // as the page is resized. 
+        window.addEventListener('resize', () => this.drawPopulationOverTimeChart());
+      },
+    });
+  });
+</script>
+
+<template>
+  <script type="text/javascript">
+    var component = document.currentScript.parentElement;
+    google.charts.setOnLoadCallback(() => component.setChartLoaded());
+  </script>
+  <div id="population_over_time_chart"></div>
+</template>
+</dom-module>
