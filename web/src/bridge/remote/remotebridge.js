@@ -13,7 +13,7 @@ class RemoteBridge {
     for (let methodName of Bridge.METHODS) {
       if (!this[methodName]) {
         this[methodName] = function(args) {
-          this.requester.sendPostRequest(methodName, {}, args);
+          return this.requester.sendPostRequest(methodName, {}, args);
         };
       }
     }
@@ -91,8 +91,12 @@ class RemoteBridge {
         });
   }
 
-  listenToGame(gameId) {
-    this.firebaseListener.listenToGame(gameId);
+  listenToGamePublic(gameId) {
+    this.firebaseListener.listenToGamePublic(gameId);
+  }
+
+  listenToGamePrivate(gameId, playerId) {
+    this.firebaseListener.listenToGamePrivate(gameId, playerId);
   }
 
   register(args) {

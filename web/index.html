@@ -82,7 +82,7 @@
 <script src="/src/utils/playerutils.js"></script>
 <script src="/src/app/batchedpolymerwriter.js"></script>
 <script src="/src/bridge/bridge.js"></script>
-<script src="/src/bridge/localdatabase.js"></script>
+<script src="/src/bridge/model.js"></script>
 <script src="/src/bridge/fake/fakebridge.js"></script>
 <script src="/src/bridge/fake/checkedserver.js"></script>
 <script src="/src/bridge/fake/fakeserver.js"></script>
@@ -94,6 +94,9 @@
 <script src="/src/bridge/consistentwriter.js"></script>
 <script src="/src/bridge/pathfindingreader.js"></script>
 
+<link rel="import" href="/src/app/app-env-chooser.html">
+<link rel="import" href="/src/app/real-app.html">
+<link rel="import" href="/src/app/fake-app.html">
 <link rel="import" href="/src/app/app.html">
 <link rel="import" href="/src/app/app-inner.html">
 <link rel="import" href="/src/app/card.html">
@@ -107,6 +110,7 @@
 <link rel="import" href="/src/chat/chat-room.html">
 <link rel="import" href="/src/chat/chat-room-list.html">
 <link rel="import" href="/src/chat/chat-room-name-label.html">
+<link rel="import" href="/src/missions/group-name-label.html">
 <link rel="import" href="/src/missions/missions-page.html">
 <link rel="import" href="/src/chat/chat-room-settings.html">
 <link rel="import" href="/src/desktop/dashboard.html">
@@ -118,7 +122,7 @@
 <link rel="import" href="/src/form/super-form.html">
 <link rel="import" href="/src/form/timestamp-picker.html">
 <link rel="import" href="/src/gameselector/game-selector.html">
-<link rel="import" href="/src/gameselector/create-modify-game.html">
+<link rel="import" href="/src/gameselector/game-details.html">
 <link rel="import" href="/src/gamestats/stats-page.html">
 <link rel="import" href="/src/gamestats/game-stat-summary.html">
 <link rel="import" href="/src/gamestats/population-current.html">
@@ -159,20 +163,59 @@
 <link rel="import" href="/src/rewards/claim-reward.html">
 <link rel="import" href="/src/rewards/rewards.html">
 <link rel="import" href="/src/rules/rules.html">
+<link rel="import" href="/src/rules/rules-section.html">
+<link rel="import" href="/src/rules/rules-collapsible.html">
 <link rel="import" href="/src/table/auto-table.html">
 <link rel="import" href="/src/table/echo.html">
 <link rel="import" href="/src/table/table-control-cell.html">
 <link rel="import" href="/src/table/table.html">
 
 <style>
-html, body {
-  width: 100%;
-  height: 100%;
-}
+  html, body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    font-family: 'Roboto', 'Noto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* whoever designed the default paper-menu needs to be shot */
+  paper-menu,
+  paper-listbox {
+    padding: 0 !important;
+  }
+  paper-menu .iron-selected,
+  paper-listbox .iron-selected {
+    font-weight: inherit !important;
+  }
+  paper-menu paper-item,
+  paper-listbox paper-item {
+    min-height: 36px !important;
+    white-space: nowrap;
+  }
+  paper-listbox paper-item::before,
+  paper-listbox paper-item::after,
+  paper-menu paper-item::before,
+  paper-menu paper-item::after {
+    display: none;
+  }
+  paper-listbox paper-item:hover,
+  paper-menu paper-item:hover {
+    background-color: #F0F0F0 !important;
+    cursor: pointer;
+  }
+
+  paper-input-container {
+    padding: 0 !important;
+  }
 </style>
 
 </head>
 <body>
-  <ghvz-app></ghvz-app>
+  <ghvz-app-bridge-level></ghvz-app-bridge-level>
 </body>
 </html>

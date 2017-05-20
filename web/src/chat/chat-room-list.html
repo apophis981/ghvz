@@ -28,7 +28,7 @@
           for (let chatRoomMembership of this.player.chatRoomMemberships) {
             let chatRoomId = chatRoomMembership.chatRoomId;
             let chatRoom = this.game.chatRoomsById[chatRoomId];
-            if (chatRoom.withAdmin) {
+            if (chatRoom.withAdmins) {
               this.adminChatExists = true;
               return;
             }
@@ -60,32 +60,33 @@
 
         createAdminChat_(bridge, game, player) {
           let name =  this.player.name + " & HvZ CDC";
-          let groupId = Bridge.GroupId.generate('withadmin');
+          let groupId = this.bridge.newGroupId('withadmins');
           this.bridge.createGroup({
+            name: "Group for " + player.id + "'s chat room",
             groupId: groupId,
             gameId: this.game.id,
-            allegianceFilter: '',
+            allegianceFilter: 'none',
             ownerPlayerId: this.player.id,
             autoAdd: false,
             autoRemove: false,
             membersCanAdd: false,
             membersCanRemove: false,
           });
-          let chatRoomId = Bridge.ChatRoomId.generate('withadmin');
+          let chatRoomId = this.bridge.newChatRoomId('withadmins');
           this.bridge.createChatRoom({
             chatRoomId: chatRoomId,
             groupId: groupId,
             name: name,
-            withAdmin: true,
+            withAdmins: true,
           });
           this.bridge.addPlayerToGroup({
             groupId: groupId,
-            playerToAddId: this.player.id,
+            otherPlayerId: this.player.id,
             playerId: this.player.id,
           });
           this.bridge.addPlayerToGroup({
             groupId: groupId,
-            playerToAddId: this.game.adminContactPlayerId,
+            otherPlayerId: this.game.adminContactPlayerId,
             playerId: this.player.id,
           });
         },

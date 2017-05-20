@@ -24,9 +24,11 @@
         "user-%(ident)s-2": true
       },
       "groups": {
-        "group-%(ident)s": true
+	"group-%(ident)s": true,
+	"group-%(ident)s-2": true
       },
       "chatRooms": {"chatRoom-%(ident)s": true},
+      "missions": {"mission-%(ident)s": true},
       "rewardCategories": {
          "rewardCategory-%(ident)s": true
       },
@@ -46,6 +48,27 @@
           "points": 5,
           "profileImageUrl": "http://jpg",
           "userId": "user-%(ident)s"
+        },
+        "player-%(ident)s-2": {
+          "active": true,
+          "number": 100,
+          "allegiance": "horde",
+          "name": "test Bobby",
+          "points": 0,
+          "profileImageUrl": "http://jpg",
+          "userId": "user-%(ident)s"
+        },
+        "player-%(ident)s-3": {
+          "active": true, "number": 100, "allegiance": "horde", "name": "test Bobby",
+          "points": 0, "profileImageUrl": "http://jpg", "userId": "user-%(ident)s"
+        },
+        "player-%(ident)s-4": {
+          "active": true, "number": 100, "allegiance": "horde", "name": "test Bobby",
+          "points": 0, "profileImageUrl": "http://jpg", "userId": "user-%(ident)s"
+        },
+        "player-%(ident)s-5": {
+          "active": true, "number": 100, "allegiance": "horde", "name": "test Bobby",
+          "points": 0, "profileImageUrl": "http://jpg", "userId": "user-%(ident)s"
         }
       },
       "rulesHtml": "test rule",
@@ -55,20 +78,39 @@
   "groups": {
     "group-%(ident)s": {
       "allegianceFilter": "none",
-      "autoAdd": false,
+      "autoAdd": true,
       "autoRemove": false,
       "gameId": "game-%(ident)s",
       "membersCanAdd": false,
       "membersCanRemove": false,
       "ownerPlayerId": "player-%(ident)s",
+      "name": "group Foo",
       "players": {
-        "player-%(ident)s": true
+        "player-%(ident)s": true,
+        "player-%(ident)s-2": true,
+        "player-%(ident)s-4": true,
+        "player-%(ident)s-5": true
+      }
+    },
+    "group-%(ident)s-2": {
+      "allegianceFilter": "none",
+      "autoAdd": false,
+      "autoRemove": false,
+      "gameId": "game-%(ident)s",
+      "membersCanAdd": true,
+      "membersCanRemove": true,
+      "ownerPlayerId": "player-%(ident)s",
+      "name": "group Bar",
+      "players": {
+        "player-%(ident)s": true,
+        "player-%(ident)s-2": true
       }
     }
   },
   "guns": {
     "gun-%(ident)s": {
-      "playerId": "player-%(ident)s"
+      "playerId": "player-%(ident)s",
+      "a": true
     }
   },
   "missions": {
@@ -91,6 +133,8 @@
       "needGun": true,
       "startAsZombie": true,
       "userId": "user-%(ident)s",
+      "gotEquipment": true,
+      "wantsToBeSecretZombie": true,
       "volunteer": {
         "advertising": false,
         "logistics": false,
@@ -104,22 +148,98 @@
         "server": true,
         "client": false,
         "mobile": false
+      }
     },
-      "wantsToBeSecretZombie": true
+    "player-%(ident)s-2": {
+      "notificationSettings": {
+        "sound": true,
+        "vibrate": true
+      },
+      "canInfect": true,
+      "gameId": "game-%(ident)s",
+      "needGun": true,
+      "startAsZombie": true,
+      "userId": "user-%(ident)s",
+      "gotEquipment": true,
+      "wantsToBeSecretZombie": true,
+      "missions": {"mission-%(ident)s": true},
+      "chatRooms": {"chatRoom-%(ident)s": true},
+      "volunteer": {
+        "advertising": false,
+        "logistics": false,
+        "communications": false,
+        "moderator": false,
+        "cleric": false,
+        "sorcerer": false,
+        "admin": false,
+        "photographer": false,
+        "chronicler": false,
+        "server": false,
+        "client": false,
+        "mobile": false
+      }
+    },
+    "player-%(ident)s-3": {
+      "notificationSettings": { "sound": true, "vibrate": true },
+      "canInfect": true,
+      "gameId": "game-%(ident)s",
+      "needGun": true,
+      "startAsZombie": true,
+      "userId": "user-%(ident)s",
+      "gotEquipment": true,
+      "wantsToBeSecretZombie": true,
+      "volunteer": {
+        "advertising": false, "logistics": false, "communications": false, "moderator": false,
+        "cleric": false, "sorcerer": false, "admin": false, "photographer": false,
+        "chronicler": false, "server": false, "client": false, "mobile": false
+      }
+    },
+    "player-%(ident)s-4": {
+      "notificationSettings": { "sound": true, "vibrate": true },
+      "canInfect": true,
+      "gameId": "game-%(ident)s",
+      "needGun": true,
+      "startAsZombie": true,
+      "userId": "user-%(ident)s",
+      "gotEquipment": true,
+      "wantsToBeSecretZombie": true,
+      "volunteer": {
+        "advertising": false, "logistics": false, "communications": false, "moderator": false,
+        "cleric": false, "sorcerer": false, "admin": false, "photographer": false,
+        "chronicler": false, "server": false, "client": false, "mobile": false
+      }
+    },
+    "player-%(ident)s-5": {
+      "notificationSettings": { "sound": true, "vibrate": true },
+      "canInfect": true,
+      "gameId": "game-%(ident)s",
+      "needGun": true,
+      "startAsZombie": true,
+      "userId": "user-%(ident)s",
+      "gotEquipment": true,
+      "wantsToBeSecretZombie": true,
+      "missions": {"mission-%(ident)s": true},
+      "chatRooms": {"chatRoom-%(ident)s": true},
+      "volunteer": {
+        "advertising": false, "logistics": false, "communications": false, "moderator": false,
+        "cleric": false, "sorcerer": false, "admin": false, "photographer": false,
+        "chronicler": false, "server": false, "client": false, "mobile": false
+      }
     }
   },
   "users": {
     "user-%(ident)s": {
-      "name": "John",
+      "name": "Angel",
       "players": {
-        "player-%(ident)s": {
-          "gameId": "game-%(ident)s"
-        }
+        "player-%(ident)s": { "gameId": "game-%(ident)s" },
+        "player-%(ident)s-2": { "gameId": "game-%(ident)s" },
+        "player-%(ident)s-3": { "gameId": "game-%(ident)s" },
+        "player-%(ident)s-4": { "gameId": "game-%(ident)s" },
+        "player-%(ident)s-5": { "gameId": "game-%(ident)s" }
       }
     },
-    "user-%(ident)s-2": {
-      "name": "Bob"
-    }
+    "user-%(ident)s-2": { "name": "Bob" },
+    "user-%(ident)s-3": { "name": "Charles" }
   },
   "rewardCategories": {
     "rewardCategory-%(ident)s": {
@@ -127,7 +247,10 @@
       "name": "test Reward",
       "gameId": "game-%(ident)s",
       "points": 5,
-      "limitPerPlayer": 2
+      "limitPerPlayer": 2,
+      "rewards": {
+        "reward-%(ident)s-bleck": true
+      }
     }
   },
   "notifications": {},

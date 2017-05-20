@@ -1,42 +1,3 @@
-<style>
-body {
-  font-family: 'Roboto', 'Noto', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* whoever designed the default paper-menu needs to be shot */
-paper-menu,
-paper-listbox {
-  padding: 0 !important;
-}
-paper-menu .iron-selected,
-paper-listbox .iron-selected {
-  font-weight: inherit !important;
-}
-paper-menu paper-item,
-paper-listbox paper-item {
-  min-height: 36px !important;
-  white-space: nowrap;
-}
-paper-listbox paper-item::before,
-paper-listbox paper-item::after,
-paper-menu paper-item::before,
-paper-menu paper-item::after {
-  display: none;
-}
-paper-listbox paper-item:hover,
-paper-menu paper-item:hover {
-  background-color: #F0F0F0 !important;
-  cursor: pointer;
-}
-
-paper-input-container {
-  padding: 0 !important;
-}
-</style>
-
 <dom-module id="ghvz-app">
 <script>
   // Not sure why this HTMLImports.whenReady is really needed.
@@ -47,29 +8,10 @@ paper-input-container {
       is: 'ghvz-app',
 
       properties: {
-        env: {
-          type: String,
-          value: () => {
-            var env = Utils.getParameterByName('env');
-            var defaultEnv = 'fake';
-            if (window.location.hostname == "dev.googlehvz.com")
-              defaultEnv = 'env';
-            if (window.location.hostname == "googlehvz.com")
-              defaultEnv = 'prod';
-            if (!env)
-              env = defaultEnv;
-            return env;
-          },
-        },
-
-        bridge: {
-          type: Object,
-        },
-
-        isDesktop: {
-          type: Boolean,
-          value: () => !window.matchMedia("only screen and (max-width: 760px)").matches,
-        },
+        bridge: Object,
+        database: Object,
+        url: String,
+        userId: String,
 
         showSignInButton: {
           type: Boolean,
@@ -81,16 +23,6 @@ paper-input-container {
           value: true,
         },
 
-        database: {
-          type: Object,
-          value: () => ({}),
-        },
-
-        userId: {
-          type: String,
-          value: undefined,
-        },
-
         gameId: {
           type: String,
           value: null,
@@ -99,6 +31,15 @@ paper-input-container {
         playerId: {
           type: String,
           value: null,
+        },
+
+        listeningToGamePublic: {
+          type: Boolean,
+          value: false,
+        },
+        listeningToGamePrivate: {
+          type: Boolean,
+          value: false,
         },
 
         user: Object,
@@ -113,23 +54,25 @@ paper-input-container {
           type: String,
           value: '',
         },
+
+        url: String,
       },
 
       observers: [
-        'onUserIdChanged_(userId, database.users.length)',
-        'onGameIdChanged_(bridge, gameId, database.games.splices)',
+        'onUserIdChanged_(bridge, database, userId, database.users.length)',
+        'autoNavigate_(bridge, database, game.admins.length)',
         // 'onPlayerIdChanged_(playerId, game.playersById)'
-        'autoNavigate_(database.games.splices)',
-        'autoNavigate_(database.users.splices)',
-        'autoNavigate_(game.players.length)',
-        'autoNavigate_(game.players.splices)',
-        'autoNavigate_(user.players.length)',
-        'autoNavigate_(user.players.splices)',
-        'autoNavigate_(userId)',
-        'autoNavigate_(user)',
-        'autoNavigate_(gameId)',
-        'autoNavigate_(game)',
-        'autoNavigate_(playerId)',
+        'autoNavigate_(bridge, database, database.games.splices)',
+        'autoNavigate_(bridge, database, database.users.splices)',
+        'autoNavigate_(bridge, database, game.players.length)',
+        'autoNavigate_(bridge, database, game.players.splices)',
+        'autoNavigate_(bridge, database, user.players.length)',
+        'autoNavigate_(bridge, database, user.players.splices)',
+        'autoNavigate_(bridge, database, userId)',
+        'autoNavigate_(bridge, database, user)',
+        'autoNavigate_(bridge, database, gameId)',
+        'autoNavigate_(bridge, database, game)',
+        'autoNavigate_(bridge, database, playerId)',
       ],
 
       listeners: {
@@ -154,16 +97,6 @@ paper-input-container {
         }
       },
 
-      onGameIdChanged_() {
-        if (!this.game) {
-          let game = this.database.games.find(game => game.id == this.gameId);
-          if (game) {
-            this.bridge.listenToGame(this.gameId);
-            this.$.gameSelector.select(game);
-          }
-        }
-      },
-
       handleSelectGame_(e) {
         this.gameId = e.detail.gameId;
       },
@@ -175,17 +108,14 @@ paper-input-container {
       // },
 
       attached() {
-        this.bridge = this.makeBridge_();
-        this.bridge.attemptAutoSignIn()
-            .then((userId) => this.userId = userId)
-            .catch((e) => {
-              this.userId = null
-            });
-        window.onpopstate = this.handlePopState_.bind(this);
-      },
-
-      makeBridge_() {
-        return new Bridge(this.env, this.makeBridgeDelegate_());
+        // userId might have been given to us, such as when we're doing fake
+        if (!this.userId) {
+          this.bridge.attemptAutoSignIn()
+              .then((userId) => this.userId = userId)
+              .catch((e) => {
+                this.userId = null
+              });
+        }
       },
 
       makeBridgeDelegate_: function() {
@@ -249,6 +179,27 @@ paper-input-container {
             }
           }
         }
+        if (this.gameId && !this.game) {
+          let game = this.database.games.find(game => game.id == this.gameId);
+          if (game && !this.listeningToGamePublic) {
+            this.listeningToGamePublic = true;
+            this.bridge.listenToGamePublic(this.gameId);
+            this.$.gameSelector.select(game);
+          }
+        }
+        if (this.game && !this.listeningToGamePrivate) {
+          let playerId = undefined;
+          let isAdmin = this.userId && this.game.admins.find(admin => admin.userId == this.userId);
+          if (isAdmin) {
+            playerId = null;
+          } else if (this.playerId) {
+            playerId = this.playerId;
+          }
+          if (playerId !== undefined) {
+            this.listeningToGamePrivate = true;
+            this.bridge.listenToGamePrivate(this.gameId, playerId);
+          }
+        }
         if (this.user && this.gameId && !this.playerId) {
           // Try to figure out their player, if they have one.
           let userPlayer = this.user.players.find(player => player.gameId == this.gameId);
@@ -266,7 +217,9 @@ paper-input-container {
           // while we're already reacting to something from it.
           this.async(() => {
             this.page = page;
-            window.history.replaceState({}, "", this.assembleUrl_(null, this.page));
+            this.fire('ghvz-replace-url', {
+              url: this.assembleUrl_(null, this.page),
+            });
           });
           return;
         }
@@ -352,7 +305,6 @@ paper-input-container {
   <ghvz-app-inner
       id="inner"
       bridge="[[bridge]]"
-      is-desktop="[[isDesktop]]"
       env="[[env]]"
       database="[[database]]"
       user="[[user]]"

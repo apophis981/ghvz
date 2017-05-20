@@ -1,19 +1,5 @@
 function Utils() {}
 
-Utils.setDeterministicGenerator = function() {
-  var idsByType = {};
-  Utils.generateId = (type, note) => {
-    if (!(type in idsByType)) {
-      idsByType[type] = 1;
-    }
-    let result = type + "-";
-    if (note)
-      result += note + "-";
-    result += idsByType[type]++;
-    return result;
-  }
-};
-
 /*
 * Generates a random number to use as an ID. Probability of id collision
 * is negligible.
@@ -372,12 +358,13 @@ Utils.checkObject = function(object, required, optional, typeNameHandler) {
     assert(typeNameHandler(required, object) !== false, 'Does not meet expectations!');
   } else if (typeof required == 'function') {
     assert(required(object), 'Does not meet expectations!');
-  } else if (typeof required == 'object' || typeof optional == 'object') {
+  } else if ((required && typeof required == 'object') || (optional && typeof optional == 'object')) {
     required = required || {};
     optional = optional || {};
     for (let key in required) {
       assert(key in object, "Property", key, "not present!");
     }
+    assert(typeof object == 'object');
     for (let key in object) {
       assert(key in required || key in optional, "Extra property", key, "!");
     }

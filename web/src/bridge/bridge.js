@@ -1,8 +1,10 @@
 'use strict';
 
 class Bridge {
-  constructor(env, appWriter) {
-    this.inner = Bridge.makeInnerBridge_(env, appWriter);
+  constructor(idGenerator, inner) {
+    this.inner = inner;
+
+    this.idGenerator = idGenerator;
 
     for (let [method, expectations] of Bridge.METHODS_MAP) {
       this[method] =
@@ -16,14 +18,23 @@ class Bridge {
             return this.inner[method](...args);
           };
     }
+
+    for (let methodName of Utils.getAllFuncNames(idGenerator)) {
+      this[methodName] = (...args) => this.idGenerator[methodName](...args);
+    }
   }
 
   attemptAutoSignIn() {
     return this.inner.attemptAutoSignIn();
   }
 
-  listenToGame(gameId) {
-    return this.inner.listenToGame(gameId);
+  listenToGamePublic(gameId) {
+    return this.inner.listenToGamePublic(gameId);
+  }
+
+  // playerId null means try to access as admin
+  listenToGamePrivate(gameId, playerId) {
+    return this.inner.listenToGamePrivate(gameId, playerId);
   }
 
   check_(typeName, value) {
@@ -42,116 +53,82 @@ class Bridge {
       return Utils.isTimestampMs(value);
     if (typeName.startsWith('!'))
       typeName = typeName.slice(1);
-    assert(typeName in Bridge);
-    Bridge[typeName].verify(value);
-    // todo, put existence checks here
-  }
 
-  static makeInnerBridge_(env, appWriter) {
-    if (env == 'fake') {
-      return new FakeBridge(appWriter);
-    } else {
-      let config;
-      let serverUrl;
-      if (env == 'prod') {
-        serverUrl = "https://humansvszombies-24348.appspot.com/";
-        config = {
-          apiKey: "AIzaSyCyNJ8cgkeiWNOO9axMDx1BLXSgf69I2RM",
-          authDomain: "trogdors-29fa4.firebaseapp.com",
-          databaseURL: "https://trogdors-29fa4.firebaseio.com",
-          projectId: "trogdors-29fa4",
-          storageBucket: "trogdors-29fa4.appspot.com",
-          messagingSenderId: "625580091272"
-        };
-      } else if (env == 'dev') {
-        serverUrl = "trololol"; // we dont have a dev frontend
-        config = {
-          apiKey: "AIzaSyCH6Z73pymnu8lzn8b5-O8yuf2FrOt8GOs",
-          authDomain: "zeds-dbe0f.firebaseapp.com",
-          databaseURL: "https://zeds-dbe0f.firebaseio.com",
-          storageBucket: "zeds-dbe0f.appspot.com",
-          messagingSenderId: "721599614458",
-        };
-      } else {
-        throwError("Bad env:", env);
-      }
-      return new RemoteBridge(serverUrl, config, appWriter);
-    }
+    assert(('verify' + typeName) in this.idGenerator);
+    assert(value);
+
+    // Such as Bridge.UserId.verify
+    this.idGenerator['verify' + typeName](value);
   }
 }
 
-Bridge.UserId = {
-  generate: (note) => Utils.generateId('user', note),
-  verify: (id) => id.startsWith('user-'),
-};
-Bridge.GameId = {
-  generate: (note) => Utils.generateId('game', note),
-  verify: (id) => id.startsWith('game-'),
-};
-Bridge.PlayerId = {
-  generate: (note) => Utils.generateId('player', note),
-  verify: (id) => id.startsWith('player-'),
-};
-Bridge.LifeId = {
-  generate: (note) => Utils.generateId('life', note),
-  verify: (id) => id.startsWith('life-'),
-};
-Bridge.InfectionId = {
-  generate: (note) => Utils.generateId('infection', note),
-  verify: (id) => id.startsWith('infection-'),
-};
-Bridge.MissionId = {
-  generate: (note) => Utils.generateId('mission', note),
-  verify: (id) => id.startsWith('mission-'),
-};
-Bridge.GunId = {
-  generate: (note) => Utils.generateId('gun', note),
-  verify: (id) => id.startsWith('gun-'),
-};
-Bridge.GroupId = {
-  generate: (note) => Utils.generateId('group', note),
-  verify: (id) => id.startsWith('group-'),
-};
-Bridge.ChatRoomId = {
-  generate: (note) => Utils.generateId('chatRoom', note),
-  verify: (id) => id.startsWith('chatRoom-'),
-};
-Bridge.MessageId = {
-  generate: (note) => Utils.generateId('message', note),
-  verify: (id) => id.startsWith('message-'),
-};
-Bridge.NotificationCategoryId = {
-  generate: (note) => Utils.generateId('notificationCategory', note),
-  verify: (id) => id.startsWith('notificationCategory-'),
-};
-Bridge.NotificationId = {
-  generate: (note) => Utils.generateId('notification', note),
-  verify: (id) => id.startsWith('notification-'),
-};
-Bridge.RewardCategoryId = {
-  generate: (note) => Utils.generateId('rewardCategory', note),
-  verify: (id) => id.startsWith('rewardCategory-'),
-};
-Bridge.RewardId = {
-  generate: (note) => Utils.generateId('reward', note),
-  verify: (id) => id.startsWith('reward-'),
-};
-Bridge.MembershipId = {
-  generate: (note) => Utils.generateId('membership', note),
-  verify: (id) => id.startsWith('membership-'),
-};
-Bridge.ClaimId = {
-  generate: (note) => Utils.generateId('claim', note),
-  verify: (id) => id.startsWith('claim-'),
-};
-Bridge.QuizQuestionId = {
-  generate: (note) => Utils.generateId('quizQuestion', note),
-  verify: (id) => id.startsWith('quizQuestion-'),
-};
-Bridge.QuizAnswerId = {
-  generate: (note) => Utils.generateId('quizAnswer', note),
-  verify: (id) => id.startsWith('quizAnswer-'),
-};
+class IdGenerator {
+  generateId(type, note) { return Utils.generateId(type, note); }
+  verify(type, id) { return id.startsWith(type + '-'); }
+
+  newChatRoomId(note) { return this.generateId('chatRoom', note); }
+  verifyChatRoomId(id) { return this.verify('chatRoom', id); }
+  newClaimId(note) { return this.generateId('claim', note); }
+  verifyClaimId(id) { return this.verify('claim', id); }
+  newGameId(note) { return this.generateId('game', note); }
+  verifyGameId(id) { return this.verify('game', id); }
+  newGroupId(note) { return this.generateId('group', note); }
+  verifyGroupId(id) { return this.verify('group', id); }
+  newGunId(note) { return this.generateId('gun', note); }
+  verifyGunId(id) { return this.verify('gun', id); }
+  newInfectionId(note) { return this.generateId('infection', note); }
+  verifyInfectionId(id) { return this.verify('infection', id); }
+  newLifeId(note) { return this.generateId('life', note); }
+  verifyLifeId(id) { return this.verify('life', id); }
+  newMapId(note) { return this.generateId('map', note); }
+  verifyMapId(id) { return this.verify('map', id); }
+  newMembershipId(note) { return this.generateId('membership', note); }
+  verifyMembershipId(id) { return this.verify('membership', id); }
+  newMessageId(note) { return this.generateId('message', note); }
+  verifyMessageId(id) { return this.verify('message', id); }
+  newMissionId(note) { return this.generateId('mission', note); }
+  verifyMissionId(id) { return this.verify('mission', id); }
+  newNotificationCategoryId(note) { return this.generateId('notification', note); }
+  verifyNotificationCategoryId(id) { return this.verify('notification', id); }
+  newNotificationId(note) { return this.generateId('notification', note); }
+  verifyNotificationId(id) { return this.verify('notification', id); }
+  newPlayerId(note) { return this.generateId('player', note); }
+  verifyPlayerId(id) { return this.verify('player', id); }
+  newPointId(note) { return this.generateId('point', note); }
+  verifyPointId(id) { return this.verify('point', id); }
+  newQuizAnswerId(note) { return this.generateId('quizAnswer', note); }
+  verifyQuizAnswerId(id) { return this.verify('quizAnswer', id); }
+  newQuizQuestionId(note) { return this.generateId('quizQuestion', note); }
+  verifyQuizQuestionId(id) { return this.verify('quizQuestion', id); }
+  newRequestId(note) { return this.generateId('request', note); }
+  verifyRequestId(id) { return this.verify('request', id); }
+  newResponseId(note) { return this.generateId('response', note); }
+  verifyResponseId(id) { return this.verify('response', id); }
+  newRewardCategoryId(note) { return this.generateId('rewardCategory', note); }
+  verifyRewardCategoryId(id) { return this.verify('rewardCategory', id); }
+  newRewardId(note) { return this.generateId('reward', note); }
+  verifyRewardId(id) { return this.verify('reward', id); }
+  newUserId(note) { return this.generateId('user', note); }
+  verifyUserId(id) { return this.verify('user', id); }
+}
+
+class FakeIdGenerator extends IdGenerator {
+  constructor() {
+    super();
+    this.idsByType = {};
+  }
+
+  generateId(type, note) {
+    if (!(type in this.idsByType)) {
+      this.idsByType[type] = 1;
+    }
+    let result = type + "-";
+    if (note)
+      result += note + "-";
+    result += this.idsByType[type]++;
+    return result;
+  }
+}
 
 // Sets Bridge.METHODS_MAP and Bridge.serverMethods
 (function() {
@@ -184,7 +161,7 @@ Bridge.QuizAnswerId = {
     active: 'Boolean',
   };
   serverMethods.set('createGame', {
-    required: Utils.merge({gameId: '!GameId', firstAdminUserId: 'UserId'}, GAME_PROPERTIES),
+    required: Utils.merge({gameId: '!GameId', adminUserId: 'UserId'}, GAME_PROPERTIES),
   });
   serverMethods.set('updateGame', {
     required: {gameId: 'GameId'},
@@ -238,8 +215,8 @@ Bridge.QuizAnswerId = {
 
   // Missions
   const MISSION_PROPERTIES = {
-    beginTime: 'TimestampMs',
-    endTime: 'TimestampMs',
+    begin: 'TimestampMs',
+    end: 'TimestampMs',
     name: 'String',
     detailsHtml: 'String',
     groupId: 'GroupId',
@@ -258,6 +235,7 @@ Bridge.QuizAnswerId = {
   serverMethods.set('selfInfect', {required: {playerId: 'PlayerId'}});
 
   const GROUP_PROPERTIES = {
+    name: 'String',
     allegianceFilter: 'String',
     ownerPlayerId: '?PlayerId',
     autoAdd: 'Boolean',
@@ -301,8 +279,9 @@ Bridge.QuizAnswerId = {
 
   serverMethods.set('addRewards', {
     required: {
-      gameId: 'GameId',
-      numNewRewards: 'Number',
+      // gameId: 'GameId',
+      rewardCategoryId: 'RewardCategoryId',
+      count: 'Number',
     },
   });
 
@@ -317,7 +296,7 @@ Bridge.QuizAnswerId = {
 
   const CHAT_ROOM_PROPERTIES = {
     name: 'String',
-    withAdmin: 'Boolean',
+    withAdmins: 'Boolean',
   };
   serverMethods.set('createChatRoom', {
     required:
@@ -337,10 +316,38 @@ Bridge.QuizAnswerId = {
     },
   });
 
+  const MAP_PROPERTIES = {
+    name: 'String',
+  };
+  serverMethods.set('createMap', {
+    required:
+        Utils.merge(
+            {mapId: '!MapId', groupId: 'GroupId'},
+            MAP_PROPERTIES)
+  });
+  serverMethods.set('updateMap', {
+    required: {mapId: 'MapId'},
+    optional: MAP_PROPERTIES,
+  });
+
+  const POINT_PROPERTIES = {
+    name: 'String',
+    playerId: '?PlayerId',
+    color: 'String',
+    latitude: 'Number',
+    longitude: 'Number',
+  };
+  serverMethods.set('addPoint', {
+    required:
+        Utils.merge(
+            {pointId: '!PointId', mapId: 'MapId'},
+            POINT_PROPERTIES)
+  });
+
   serverMethods.set('addPlayerToGroup', {
     required: {
       groupId: 'GroupId',
-      playerToAddId: 'PlayerId',
+      otherPlayerId: 'PlayerId',
       playerId: '?PlayerId',
     },
   });
@@ -348,7 +355,7 @@ Bridge.QuizAnswerId = {
   serverMethods.set('removePlayerFromGroup', {
     required: {
       groupId: 'GroupId',
-      playerToRemoveId: 'PlayerId',
+      otherPlayerId: 'PlayerId',
       playerId: '?PlayerId',
     },
   });
@@ -366,6 +373,24 @@ Bridge.QuizAnswerId = {
       chatRoomId: 'ChatRoomId',
       playerId: 'PlayerId',
       message: 'String',
+    },
+  });
+
+  serverMethods.set('addChatMessageRequest', {
+    required: {
+      requestId: '!RequestId',
+      messageId: 'MessageId',
+      playerId: 'PlayerId',
+      type: 'String',
+    },
+  });
+
+  serverMethods.set('addChatMessageResponse', {
+    required: {
+      responseId: '!ResponseId',
+      messageId: 'MessageId',
+      playerId: 'PlayerId',
+      text: '?String',
     },
   });
 
@@ -391,24 +416,26 @@ Bridge.QuizAnswerId = {
     previewMessage: 'String',
     sound: 'Boolean',
     vibrate: 'Boolean',
-    email: 'Boolean',
+    groupId: '?GroupId',
+    playerId: '?PlayerId',
+    // email: 'Boolean',
     app: 'Boolean',
     destination: '?String',
     sendTime: 'TimestampMs',
-    allegianceFilter: 'String',
+    // allegianceFilter: 'String',
     icon: '?String',
   };
-  serverMethods.set('addNotificationCategory', {
+  serverMethods.set('sendNotification', {
     required:
         Utils.merge(
             {
-              notificationCategoryId: '!NotificationCategoryId',
-              gameId: 'GameId'
+              notificationId: '!NotificationCategoryId',
+              // gameId: 'GameId'
             },
             NOTIFICATION_CATEGORY_PROPERTIES),
   });
-  serverMethods.set('updateNotificationCategory', {
-    required: {notificationCategoryId: 'NotificationCategoryId'},
+  serverMethods.set('updateNotification', {
+    required: {notificationId: 'NotificationCategoryId'},
     optional: NOTIFICATION_CATEGORY_PROPERTIES,
   });
 
