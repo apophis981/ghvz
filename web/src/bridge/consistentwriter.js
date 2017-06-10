@@ -175,6 +175,7 @@ class ConsistentWriter {
   batchedWrite(operations) {
     this.destination.closeGate();
     for (let operation of operations) {
+      console.log('Got a write! ', operation.path);
       let {type, path, value, index} = operation;
       switch (type) {
         case 'set':
