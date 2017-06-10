@@ -1,5 +1,7 @@
 # [START app]
 import logging
+import time
+import random
 
 from firebase import firebase
 from flask import Flask, jsonify, request, g
@@ -9,6 +11,7 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import requests_toolbelt.adapters.appengine
 import json
+import threading
 
 import api_calls
 import constants
@@ -16,6 +19,8 @@ import in_memory_store as store
 import notifications
 import secrets
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 requests_toolbelt.adapters.appengine.monkeypatch()
 HTTP_REQUEST = google.auth.transport.requests.Request()
@@ -23,7 +28,7 @@ HTTP_REQUEST = google.auth.transport.requests.Request()
 app = Flask(__name__)
 flask_cors.CORS(app)
 game_state = store.InMemoryStore()
-
+api_mutex = threading.Lock()
 
 def GetFirebase():
   """Get a Firebase connection, cached in the application context."""
@@ -58,6 +63,11 @@ class AppError(Exception):
 def HandleError(e):
   """Pretty print data validation errors."""
   return 'The request is not valid. %s' % e.message, 500
+
+@app.errorhandler(AppError)
+def HandleError(e):
+  """Pretty print data validation errors."""
+  return 'Something went wrong. %s' % e.message, 500
 
 
 @app.errorhandler(500)
@@ -101,6 +111,15 @@ methods = {
   'joinResistance': api_calls.JoinResistance,
   'joinHorde': api_calls.JoinHorde,
   'setAdminContact': api_calls.SetAdminContact,
+  'updateRequestCategory': api_calls.UpdateRequestCategory,
+  'addRequestCategory': api_calls.AddRequestCategory,
+  'addRequest': api_calls.AddRequest,
+  'addResponse': api_calls.AddResponse,
+  'addQuizQuestion': api_calls.AddQuizQuestion,
+  'addQuizAnswer': api_calls.AddQuizAnswer,
+  'addDefaultProfileImage': api_calls.AddDefaultProfileImage,
+  'createMap': api_calls.AddMap,
+  'addPoint': api_calls.AddPoint,
   'DeleteTestData': api_calls.DeleteTestData,
   'DumpTestData': api_calls.DumpTestData,
 }
@@ -137,14 +156,76 @@ def CronNotification():
   notifications.ExecuteNotifications(None, GetFirebase())
   return 'OK'
 
+@app.route('/stressTest', methods=['POST'])
+def StressTest():
+  begin_time = time.time()
+
+  for i in range(0, 50):
+    HandleSingleRequest('register', {
+      'requestingUserId': None,
+      'requestingUserToken': 'blark',
+      'requestingPlayerId': None,
+      'userId': 'user-wat-%d' % random.randint(0, 2**52),
+    })
+
+  end_time = time.time()
+  print "Did 50 requests in %f seconds" % (end_time - begin_time)
+  return ''
+
+@app.route('/stressTestBatch', methods=['POST'])
+def StressTestBatch():
+  begin_time = time.time()
+
+  requests = []
+  for i in range(0, 50):
+    requests.append({
+      'method': 'register',
+      'body': {
+        'requestingUserId': None,
+        'requestingUserToken': 'blark',
+        'requestingPlayerId': None,
+        'userId': 'user-wat-%d' % random.randint(0, 2**52),
+      }
+    })
+  HandleBatchRequest(requests)
+
+  end_time = time.time()
+  print "Did 50 requests in %f seconds" % (end_time - begin_time)
+  return ''
 
 @app.route('/api/<method>', methods=['POST'])
-def RouteRequest(method):
-  if method not in methods:
-    raise AppError('Invalid method %s' % method)
-  f = methods[method]
+def SingleEndpoint(method):
+  return jsonify(HandleSingleRequest(method, json.loads(request.data)))
 
-  game_state.maybe_load(GetFirebase())
-  return jsonify(f(json.loads(request.data), game_state))
+@app.route('/api/batch', methods=['POST'])
+def BatchEndpoint():
+  return jsonify(HandleBatchRequest(json.loads(request.data)))
+
+def HandleSingleRequest(method, body):
+  result = HandleBatchRequest([{'method': method, 'body': body}])
+  return result[0]
+
+def HandleBatchRequest(requests):
+  results = []
+  try:
+    game_state.maybe_load(GetFirebase())
+    api_mutex.acquire()
+    game_state.start_transaction()
+
+    for i, request in enumerate(requests):
+      method = request['method']
+      body = request['body']
+      print "Handling request %d: %s" % (i, method)
+      results.append(CallApiMethod(method, body))
+  finally:
+    game_state.commit_transaction()
+    api_mutex.release()
+  return results
+
+def CallApiMethod(method, request_body):
+  if method not in methods:
+    raise AppError("Invalid method %s" % method)
+  f = methods[method]
+  return f(request_body, game_state)
 
 # vim:ts=2:sw=2:expandtab
