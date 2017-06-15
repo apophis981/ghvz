@@ -35,8 +35,8 @@ class Bridge {
   listenToGameAsAdmin(...args) {
     return this.inner.listenToGameAsAdmin(...args);
   }
-  listenToGameAsNonAdmin(...args) {
-    return this.inner.listenToGameAsNonAdmin(...args);
+  listenToGameAsPlayer(...args) {
+    return this.inner.listenToGameAsPlayer(...args);
   }
   setPlayerId(playerId) {
     return this.inner.setPlayerId(playerId);
@@ -87,8 +87,8 @@ class IdGenerator {
   verifyNotificationId(id) { return this.verify('notification', id); }
   newPlayerId(note) { return this.generateId('player', note); }
   verifyPlayerId(id) { return this.verify('player', id); }
-  newPointId(note) { return this.generateId('point', note); }
-  verifyPointId(id) { return this.verify('point', id); }
+  newMarkerId(note) { return this.generateId('marker', note); }
+  verifyMarkerId(id) { return this.verify('marker', id); }
   newQuizAnswerId(note) { return this.generateId('quizAnswer', note); }
   verifyQuizAnswerId(id) { return this.verify('quizAnswer', id); }
   newQuizQuestionId(note) { return this.generateId('quizQuestion', note); }
@@ -141,10 +141,10 @@ class FakeIdGenerator extends IdGenerator {
     gunId: '!GunId',
     label: 'String',
   });
-  serverMethods.set('editGun', {
+  serverMethods.set('updateGun', {
     gameId: 'GameId',
     serverTime: '|Timestamp',
-    gunId: '!GunId',
+    gunId: 'GunId',
     label: '|String',
   });
   serverMethods.set('assignGun', {
@@ -230,7 +230,6 @@ class FakeIdGenerator extends IdGenerator {
   });
   serverMethods.set('updatePlayer', {
     playerId: 'PlayerId',
-    userId: 'UserId',
     gameId: 'GameId',
     serverTime: '|Timestamp',
     name: '|String',
@@ -266,7 +265,7 @@ class FakeIdGenerator extends IdGenerator {
 
   serverMethods.set('addMission', {
     missionId: '!MissionId',
-    groupId: 'GroupId',
+    accessGroupId: 'GroupId',
     rsvpersGroupId: 'GroupId',
     gameId: 'GameId',
     serverTime: '|Timestamp',
@@ -277,8 +276,6 @@ class FakeIdGenerator extends IdGenerator {
   });
   serverMethods.set('updateMission', {
     missionId: 'MissionId',
-    groupId: 'GroupId',
-    rsvpersGroupId: 'GroupId',
     gameId: 'GameId',
     serverTime: '|Timestamp',
     beginTime: '|Timestamp',
@@ -371,7 +368,7 @@ class FakeIdGenerator extends IdGenerator {
 
   serverMethods.set('createChatRoom', {
     chatRoomId: '!ChatRoomId',
-    groupId: 'GroupId',
+    accessGroupId: 'GroupId',
     gameId: 'GameId',
     serverTime: '|Timestamp',
     name: 'String',
@@ -396,7 +393,7 @@ class FakeIdGenerator extends IdGenerator {
     gameId: 'GameId',
     mapId: '!MapId',
     serverTime: '|Timestamp',
-    groupId: 'GroupId',
+    accessGroupId: 'GroupId',
     name: 'String',
   });
   serverMethods.set('updateMap', {
@@ -406,8 +403,8 @@ class FakeIdGenerator extends IdGenerator {
     name: 'String',
   });
 
-  serverMethods.set('addPoint', {
-    pointId: '!PointId',
+  serverMethods.set('addMarker', {
+    markerId: '!MarkerId',
     mapId: 'MapId',
     serverTime: '|Timestamp',
     name: 'String',

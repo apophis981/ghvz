@@ -126,15 +126,28 @@ Utils.compare = function(aValue, bValue) {
     return 0;
 }
 
+Utils.getKeys = function(...objs) {
+  let keys = [];
+  for (let obj of objs)
+    for (let key in obj)
+      keys.push(key);
+  return keys;
+}
+
 Utils.formatTime = function(timestampInMs) {
   var date = new Date(timestampInMs);
   var result = "";
   var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Nov", "Dec"];
   result += months[date.getMonth()] + ' ';
   result += date.getDate() + ' ';
-  var am = date.getHours() <= 12;
-  result += (am ? date.getHours() : date.getHours() - 12);
-  result += ":" + (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() + (am ? 'am' : 'pm');
+  let hours = date.getHours();
+  var pm = hours >= 12;
+  if (pm)
+    hours -= 12;
+  if (hours == 0)
+    hours += 12;
+  result += hours;
+  result += ":" + (date.getMinutes() < 10 ? '0' : '') + date.getMinutes() + (pm ? 'pm' : 'am');
   return result;
 }
 
@@ -365,7 +378,7 @@ Utils.Validator.prototype.validateInner = function(key, object, expectation) {
 
   if (typeof expectation == 'object') {
     assert(typeof object == 'object');
-    for (let innerKey in object) {
+    for (let innerKey of Utils.getKeys(object, expectation)) {
       assert(innerKey in expectation, "Extra property", innerKey, "!");
       this.validateInner(innerKey, object[innerKey], expectation[innerKey]);
     }
@@ -375,6 +388,8 @@ Utils.Validator.prototype.validateInner = function(key, object, expectation) {
         return;
       expectation = expectation.slice(1);
     }
+
+    assert(object !== undefined, "'" + key + "' not present!");
 
     if (expectation[0] == '?') {
       if (object === null)

@@ -1,8 +1,10 @@
+from api_helpers import AppError, respondError
+
 import copy
 import logging
 import random
-import time
 import textwrap
+import time
 
 import constants
 import db_helpers as helpers
@@ -13,10 +15,19 @@ import config
 InvalidInputError = helpers.InvalidInputError
 
 
-# Used for trawling the full DB.
 ROOT_ENTRIES = (
-    'chatRooms', 'games', 'groups', 'guns', 'missions', 'playersPrivate', 'playersPublic',
-    'users', 'rewardCategories', 'rewards', 'notifications')
+    'chatRooms',
+    'games',
+    'groups',
+    'guns',
+    'maps',
+    'missions',
+    'playersPrivate',
+    'playersPublic',
+    'users',
+    'rewardCategories',
+    'rewards',
+    'queuedNotifications')
 
 
 def Register(request, game_state):
@@ -269,6 +280,10 @@ def AddPlayer(request, game_state):
     }
   })
 
+  # TODO: Maybe also check for duplicate names in the same game?
+  if ' '  in request['name']:
+    raise InvalidInputError('Name cannot contain spaces.')
+
   game_id = request['gameId']
   player_id = request['playerId']
   user_id = request['userId']
@@ -277,6 +292,8 @@ def AddPlayer(request, game_state):
 
   user_player = {'gameId': game_id}
   game_state.put('/users/%s/players' % user_id, player_id, user_player)
+  user_game = {'playerId': player_id}
+  game_state.put('/users/%s/games' % user_id, game_id, user_game)
 
   private_player = {
     'gameId': game_id,
@@ -347,6 +364,10 @@ def UpdatePlayer(request, game_state):
   })
 
   player_id = request['playerId']
+
+  # TODO: Maybe also check for duplicate names in the same game?
+  if ' '  in request['name']:
+    raise InvalidInputError('Name cannot contain spaces.')
 
   public_update = {}
   for property in ['active', 'name', 'profileImageUrl']:
@@ -430,7 +451,7 @@ def AddMission(request, game_state):
   helpers.ValidateInputs(request, game_state, {
     'gameId': 'GameId',
     'missionId': '!MissionId',
-    'groupId': 'GroupId',
+    'accessGroupId': 'GroupId',
     'rsvpersGroupId': 'GroupId',
     'name': 'String',
     'beginTime': 'Timestamp',
@@ -438,7 +459,7 @@ def AddMission(request, game_state):
     'detailsHtml': 'String'
   })
 
-  mission_data = {k: request[k] for k in ['name', 'beginTime', 'endTime', 'detailsHtml', 'groupId', 'rsvpersGroupId', 'gameId']}
+  mission_data = {k: request[k] for k in ['name', 'beginTime', 'endTime', 'detailsHtml', 'accessGroupId', 'rsvpersGroupId', 'gameId']}
 
   game_state.put('/missions', request['missionId'], mission_data)
   game_state.put('/games/%s/missions' % request['gameId'], request['missionId'], True)
@@ -496,7 +517,7 @@ def AddChatRoom(request, game_state):
   helpers.ValidateInputs(request, game_state, {
     'gameId': 'GameId',
     'chatRoomId': '!ChatRoomId',
-    'groupId': 'GroupId',
+    'accessGroupId': 'GroupId',
     'withAdmins': 'Boolean',
     'name': 'String'
   })
@@ -504,7 +525,7 @@ def AddChatRoom(request, game_state):
   chat_room_id = request['chatRoomId']
   game_id = request['gameId']
 
-  chat_room = {k: request[k] for k in ('groupId', 'name', 'withAdmins', 'gameId')}
+  chat_room = {k: request[k] for k in ('accessGroupId', 'name', 'withAdmins', 'gameId')}
 
   game_state.put('/chatRooms', chat_room_id, chat_room)
   game_state.put('/games/%s/chatRooms' % game_id, chat_room_id, True)
@@ -564,7 +585,43 @@ def SendChatMessage(request, game_state):
   if not game_state.get('/groups/%s/players' % group, request['playerId']):
     raise InvalidInputError('You are not a member of that chat room.')
 
-  # TODO Scan message for any @all or @player to turn into notifications.
+  user_id = game_state.get('/playersPublic/%s' % request['playerId'], 'userId')
+  players_in_room = helpers.GetPlayerNamesInChatRoom(game_state, chat)
+  notification_data = {
+    'gameId': request['gameId'],
+    'queuedNotificationId': 'queuedNotification-%s' % request['messageId'][len('message-'):],
+    'message': request['message'],
+    'previewMessage': textwrap.wrap(request['message'], 100)[0],
+    'site': True,
+    'mobile': True,
+    'vibrate': True,
+    'sound': False,
+    'destination': 'TODO',
+    'sendTime': int(time.time() * 1000),
+    'icon': 'TODO'
+  }
+  # If we check for all @all, then there is no need to send out additional
+  # player notifications.
+  if '@all' in request['message'] and helpers.IsAdmin(game_state,
+                                                      request['gameId'],
+                                                      user_id):
+
+    for player in players_in_room:
+      n = notification_data.copy()
+      n['queuedNotificationId'] = '%s%s' % (n['queuedNotificationId'], player)
+      n['playerId'] = players_in_room[player]
+      helpers.QueueNotification(game_state, n)
+  else:
+    tokens = request['message'].split(' ')
+    for token in tokens:
+      if not token.startswith('@'):
+        continue
+      name = token[1:]
+      if name in players_in_room:
+        n = notification_data.copy()
+        n['queuedNotificationId'] = '%s%s' % (n['queuedNotificationId'], name)
+        n['playerId'] = players_in_room[name]
+        helpers.QueueNotification(game_state, n)
 
   put_data = {
     'playerId': request['playerId'],
@@ -599,16 +656,187 @@ def UpdateRequestCategory(request, game_state):
   pass
 
 def AddQuizQuestion(request, game_state):
-  pass
+  """Adds a quiz question with the given information
+
+    Validation:
+      gameId must exist
+      quizQuestionId must not exist
+      text must be present
+      type must be present
+
+    Args:
+      gameId: the quiz question will be associated with
+      quizQuestionId: The id used to identify the question
+      text: Text that represents the question
+      type: The type of the question. Either 'order' or 'multipleChoice'
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'quizQuestionId': 'String',
+    'text': 'String',
+    'type': 'String'
+  })
+
+  question = game_state.get(
+    '/games/%s/quizQuestions' % request['gameId'],
+    request['quizQuestionId'])
+
+  if question is not None:
+    return respondError(400, 'Quiz question already exists')
+
+  question_type = request['type']
+  if question_type != 'order' and question_type != 'multipleChoice':
+    return respondError(400, 'type must be "order" or "multipleChoice"')
+
+  return game_state.put(
+    '/games/%s/quizQuestions' % request['gameId'],
+    request['quizQuestionId'],
+    {
+      'text': request['text'],
+      'type': request['type']
+  })
+
+def UpdateQuizQuestion(request, game_state):
+  """Updates a quiz question with the given information
+
+    Validation:
+      gameId must exist
+      quizQuestionId must exist
+
+    Args:
+      quizQuestionId: The id used to identify the question
+      text: Text that represents the question
+      type: The type of the question. Either 'order' or 'multipleChoice'
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'quizQuestionId': 'String',
+    'text': '|String',
+    'type': '|String'
+  })
+
+  question = game_state.get(
+    '/games/%s/quizQuestions' % request['gameId'],
+    request['quizQuestionId'])
+
+  if question is None:
+    return respondError(400, 'Quiz question should exist')
+
+  patch_data = {}
+
+  if 'text' in request:
+    patch_data['text'] = request['text']
+
+  if 'type' in request:
+    question_type = request['type']
+    if question_type != 'order' and question_type != 'multipleChoice':
+      return respondError(400, 'type must be "order" or "multipleChoice"')
+    patch_data['type'] = question_type
+
+  if len(patch_data) > 0:
+    return game_state.patch(
+      '/games/%s/quizQuestions/%s' %
+        (request['gameId'], request['quizQuestionId']),
+      patch_data
+    )
+  return []
 
 def AddQuizAnswer(request, game_state):
-  pass
+  """Adds a quiz answer with the given information
 
-def AddMap(request, game_state):
-  pass
+    Validation:
+      gameId must exist
+      isCorrect must a Boolean
+      order must be a Number
+      quizAnswerId must exist
+      quizQuestionId must not exist
+      text must be a String
 
-def AddPoint(request, game_state):
-  pass
+    Args:
+      gameId: the quiz question will be associated with
+      isCorrect: Whether or not the answer is the correct one to the question
+      order: The order the answer should be displayed relative to others
+      quizAnswerId: The id used to identify the answer
+      quizQuestionId: The id used to identify the question the answer is to
+      text: Text representing the answer
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'isCorrect': 'Boolean',
+    'order': 'Number',
+    'quizAnswerId': 'String',
+    'quizQuestionId': 'String',
+    'text': 'String',
+  })
+
+  question = game_state.get(
+    '/games/%s/quizQuestions' % request['gameId'],
+    request['quizQuestionId'])
+  if question is None:
+    return respondError(400, 'Quiz question should exist')
+  if 'answers' in question and request['quizAnswerId'] in question['answers']:
+    return respondError(400, 'Quiz answer should not exist')
+
+  return game_state.put(
+    '/games/%s/quizQuestions/%s/answers'
+      % (request['gameId'], request['quizQuestionId']),
+    request['quizAnswerId'],
+    {
+      'isCorrect': request['isCorrect'],
+      'order': request['order'],
+      'text': request['text'],
+  })
+
+def UpdateQuizAnswer(request, game_state):
+  """Updates a quiz answer with the given information
+
+    Validation:
+      gameId must exist
+      quizAnswerId must exist
+      quizQuestionId must exist
+
+    Args:
+      gameId: the quiz question will be associated with
+      isCorrect: Whether or not the answer is the correct one to the question
+      order: The order the answer should be displayed relative to others
+      quizAnswerId: The id used to identify the answer
+      quizQuestionId: The id used to identify the question the answer is to
+      text: Text representing the answer
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'isCorrect': '|Boolean',
+    'order': '|Number',
+    'quizAnswerId': 'String',
+    'quizQuestionId': 'String',
+    'text': '|String',
+  })
+
+  question = game_state.get(
+    '/games/%s/quizQuestions' % request['gameId'],
+    request['quizQuestionId'])
+  if question is None:
+    return respondError(400, 'Quiz question should exist')
+  if 'answers' not in question or \
+      request['quizAnswerId'] not in question['answers']:
+    return respondError(400, 'Quiz answer should exist')
+
+  patch_data = {}
+
+  if 'text' in request:
+    patch_data['text'] = request['text']
+  if 'isCorrect' in request:
+    patch_data['isCorrect'] = request['isCorrect']
+  if 'order' in request:
+    patch_data['order'] = request['order']
+
+  if len(patch_data) > 0:
+    return game_state.patch(
+      '/games/%s/quizQuestions/%s/answers/%s' %
+        (request['gameId'], request['quizQuestionId'], request['quizAnswerId']),
+      patch_data
+    )
+  return []
 
 def AddDefaultProfileImage(request, game_state):
   # gameId: gameId,
@@ -740,11 +968,11 @@ def AddPlayerToGroupInner(game_state, group_id, player_to_add_id):
 
   chats = helpers.GroupToChats(game_state, group_id)
   for chat in chats:
-    game_state.put('/playersPrivate/%s/chatRooms' % player_to_add_id, chat, True)
+    game_state.put('/playersPrivate/%s/accessibleChatRooms' % player_to_add_id, chat, True)
 
   missions = helpers.GroupToMissions(game_state, group_id)
   for mission in missions:
-    game_state.put('/playersPrivate/%s/missions' % player_to_add_id, mission, True)
+    game_state.put('/playersPrivate/%s/accessibleMissions' % player_to_add_id, mission, True)
 
 def RemovePlayerFromGroup(request, game_state):
   """Remove a player from a group.
@@ -835,11 +1063,11 @@ def RemovePlayerFromGroupInner(game_state, group_id, player_id):
 
   chats = helpers.GroupToChats(game_state, group_id)
   for chat in chats:
-    game_state.delete('/playersPrivate/%s/chatRooms' % player_id, chat)
+    game_state.delete('/playersPrivate/%s/accessibleChatRooms' % player_id, chat)
 
   missions = helpers.GroupToMissions(game_state, group_id)
   for mission in missions:
-    game_state.delete('/playersPrivate/%s/missions' % player_id, mission)
+    game_state.delete('/playersPrivate/%s/accessibleMissions' % player_id, mission)
 
 
 def AutoUpdatePlayerGroups(game_state, player_id, new_player=False):
@@ -1249,126 +1477,97 @@ def RandomWords(n):
 def SendNotification(request, game_state):
   """Queue a notification to be sent.
 
-  Validation:
-    notificationId does not exist.
-    groupId or playerId exists.
+  Firebase entries:
+    /notifications/%(notificationId)
+"""
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId', # Game ID
+    'queuedNotificationId': '!QueuedNotificationId', # QueuedNotificationId to create.
+    'message': 'String', # Message to send to client.
+    'previewMessage': 'String', # Short preview of the message comments.
+    'site': 'Boolean', # Whether to send to the web client.
+    'mobile': 'Boolean', # Whether to send to the iOS/Android devices.
+    'vibrate': 'Boolean', # Whether the notification should vibrate on iOS/Android.
+    'sound': 'Boolean', # Whether the notification should play a sound on iOS/Android.
+    'destination': '?String', # URL that notification should open when clicked. Null means it will just open to the notifications page on the site, to this notification.
+    'sendTime': '?Timestamp', # Unix milliseconds timestamp of When to send, or null to send asap.
+    'playerId': '?PlayerId', # Player to send it to. Either this or groupId must be present.
+    'groupId': '?GroupId', # Group to send it to. Either this or playerId must be present.
+    'icon': 'String', # An icon code to show.
+  })
 
-  Args:
-    notificationId: Queued Notification id to create.
-    message: Message to send to client.
-    previewMessage: Short preview of the message comments. If empty, one will be generated.
-    app: Whether to send as a push notification to the iOS/Android/Web clients.
-    vibrate: Whether the notification should vibrate on iOS/Android.
-    sound: Whether the notification should play a sound on iOS/Android.
-    destination: URL that notification should open when clicked.
-    sendTime: When to spawn notifications from this template. UNIX timestamp.
-    playerId: Player id to send message to. Cannot be mixed with groupId.
-    groupId: Who to send the notifications to. Cannot be mixed with playerId.
-    icon: An icon code to show.
+  # groupId or playerId must be present.
+  if (request['groupId'] is None) == (request['playerId'] is None):
+    raise InvalidInputError('Must include either a playerId or a groupId')
+
+  current_time = int(time.time() * 1000)
+  if request['sendTime'] is not None and current_time > int(request['sendTime']):
+    raise InvalidInputError('sendTime must not be in the past!')
+
+  helpers.QueueNotification(game_state, request)
+
+
+def UpdateNotification(request, game_state):
+  """Update a queued notification.
 
   Firebase entries:
     /notifications/%(notificationId)
 """
-  valid_args = ['!notificationId']
-  if 'groupId' in request and 'playerId' not in request:
-    valid_args.append('groupId')
-  elif 'playerId' in request and 'groupId' not in request:
-    valid_args.append('playerId')
-  else:
-    raise InvalidInputError('Must include either a playerId or a groupId')
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId', # Game ID
+    'queuedNotificationId': 'QueuedNotificationId', # QueuedNotificationId to create.
+    'message': '|String', # Message to send to client.
+    'previewMessage': '|String', # Short preview of the message comments.
+    'site': '|Boolean', # Whether to send to the web client.
+    'mobile': '|Boolean', # Whether to send to the iOS/Android devices.
+    'vibrate': '|Boolean', # Whether the notification should vibrate on iOS/Android.
+    'sound': '|Boolean', # Whether the notification should play a sound on iOS/Android.
+    'destination': '|String', # URL that notification should open when clicked.
+    'sendTime': '|?Timestamp', # Unix milliseconds timestamp of When to send, or null to send asap.
+    'playerId': '|?PlayerId', # Player to send it to. Either this or groupId must be present.
+    'groupId': '|?GroupId', # Group to send it to. Either this or playerId must be present.
+    'icon': '|String', # An icon code to show.
+  })
 
-  required_args = list(valid_args)
-  required_args.extend(['message', 'app', 'vibrate', 'sound', 'destination',
-                        'sendTime', 'groupId', 'icon'])
-  helpers.ValidateInputs(request, game_state, required_args, valid_args)
-  current_time = int(time.time())
-  if 'sendTime' in request and current_time > int(request['sendTime']):
+  current_time = int(time.time() * 1000)
+  if request['sendTime'] is not None and current_time > int(request['sendTime']):
     raise InvalidInputError('sendTime must not be in the past!')
 
-  if 'previewMessage' not in request:
-    request['previewMessage'] = textwrap.wrap(request['message'], 100)[0]
+  queued_notification = game_state.get('/queuedNotifications', request['queuedNotificationId'])
+  # This shouldn't happen since we validated this above...
+  if not queued_notification:
+    raise InvalidInputError('notificationId must exist!')
+  if queued_notification['sent']:
+    raise InvalidInputError('Cannot modify sent notification.')
 
   put_data = {}
-  properties = ['message', 'app', 'vibrate', 'sound', 'destination', 'sendTime',
+  properties = ['message', 'site', 'mobile', 'vibrate', 'sound', 'destination', 'sendTime',
                 'groupId', 'playerId', 'icon', 'previewMessage']
 
   for property in properties:
     if property in request:
       put_data[property] = request[property]
 
-  game_state.put('/notifications',
-                      request['notificationId'], put_data)
-
-
-def UpdateNotification(request, game_state):
-  """Update a queued notification.
-
-  Validation:
-    notificationId exists.
-
-  Args:
-    notificationId: Queued Notification id to create.
-    message: Message to send to client.
-    previewMessage: Short preview of the message conents. Optional.
-    app: Whether to send as a push notification to the iOS/Android/Web clients.
-    vibrate: Whether the notification should vibrate on iOS/Android.
-    sound: Whether the notification should play a sound on iOS/Android.
-    destination: URL that notification should open when clicked.
-    sendTime: When to spawn notifications from this template. UNIX timestamp.
-    playerId: Player id to send message to.
-    groupId: Who to send the notifications to.
-    icon: An icon code to show.
-
-  Firebase entries:
-    /notifications/%(notificationId)
-"""
-  valid_args = ['notificationId']
-  required_args = list(valid_args)
-  helpers.ValidateInputs(request, game_state, required_args, valid_args)
-
-  put_data = {}
-  properties = ['message', 'app', 'vibrate', 'sound', 'destination', 'sendTime',
-                'groupId', 'playerId', 'icon']
-
-  current_time = int(time.time())
-  if 'sendTime' in request and current_time > int(request['sendTime']):
-    raise InvalidInputError('sendTime must not be in the past!')
-
-  notification = game_state.get('/notifications', request['notificationId'])
-  # This shouldn't happen since we validated this above...
-  if not notification:
-    raise InvalidInputError('notificationId must exist!')
-  if current_time > int(notification['sendTime']) or 'sent' in notification:
-    raise InvalidInputError('Cannot modify sent notification.')
-
-  for property in properties:
-    if property in request:
-      put_data[property] = request[property]
-
-  game_state.patch('/notifications/%s' % request['notificationId'], put_data)
+  game_state.patch('/queuedNotifications/%s' % request['queuedNotificationId'], put_data)
 
 
 def MarkNotificationSeen(request, game_state):
   """Updates the notification's seenTime.
 
-  Validation:
-    notificationId must exist.
-    playerId must exist.
-
-  Args:
-    notificationId: Notification Id to update.
-    playerId: Player who saw notification.
-
   Firebase entries:
     /playersPrivate/%(playerId)/notifications/%(notificationId)
 """
-  valid_args = ['notificationId', 'playerId']
-  required_args = list(valid_args)
-  helpers.ValidateInputs(request, game_state, required_args, valid_args)
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId', # Game ID
+    'notificationId': 'NotificationId', # QueuedNotificationId to create.
+    'playerId': 'PlayerId', # Current player's id
+  })
+
+  current_time = int(time.time() * 1000)
   put_data = {
-    'time': int(time.time())
+    'seenTime': current_time
   }
-  game_state.patch('/player/%s/notifications/%s' % (
+  game_state.patch('/playersPrivate/%s/notifications/%s' % (
       request['playerId'], request['notificationId']), put_data)
 
 
@@ -1452,5 +1651,179 @@ def DumpTestData(request, game_state):
       res[entry] = {r: data[r] for r in data if 'test-' in r}
   return res
 
+def CreateMap(request, game_state):
+  """Creates a new Map with the given mapId associated with the given groupId.
+
+    Validation:
+      gameId must exist
+      groupId must exist
+      mapId must not exist
+      name must be present
+
+    Args:
+      gameID: Id uniquely identifying the game the map will be associated with.
+      groupId: Id uniquely identifying the group the map will be associated
+        with.
+      mapId: Id uniquely identifying the map to be created.
+      name: Name of the map to create
+
+    Firebase entries:
+      /maps/%(mapId)
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'accessGroupId': 'GroupId',
+    'mapId': '!MapId',
+    'name': 'String',
+  })
+
+  return [
+    game_state.put(
+      '/maps',
+      request['mapId'],
+      {
+        'gameId': request['gameId'],
+        'accessGroupId': request['accessGroupId'],
+        'name': request['name']}),
+    game_state.put(
+      '/games/%s/maps' % request['gameId'],
+      request['mapId'],
+      True)
+  ]
+
+# For lack of any organization in this project and my devious inclusion to
+# entropy I placed this here, right before I used it.
+hex_range = range(0,10) + ['a','b','c','d','e','f']
+
+# All of them should be unicode chars.
+hex_range = map(lambda x: unicode(str(x), "utf-8"), list(hex_range))
+
+
+def AddMarker(request, game_state):
+  """Adds the marker (location) of a player to a map with a set color and name.
+
+    Validation:
+      color must exist
+      latitude must exist
+      longitude must exist
+      mapId must exist
+      name must exist
+      playerId, if not None, must exist
+      markerId must not exist
+
+    Args:
+      color: The color will be used to draw the marker in the UI.
+      latitude: Latitude of the player's location.
+      longitude: Longitude of the player's location.
+      mapId: The unique id of the map the marker will be added to.
+      name: The name associated with the marker.
+      playerId: The unique of the id that the marker will be associated with.
+      markerId: The unique id of the marker to be added.
+
+    Firebase entries:
+      /maps/%(mapId)/points/%(markerId)
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'color': 'String',
+    'latitude': 'Number',
+    'longitude': 'Number',
+    'mapId': 'MapId',
+    'name': 'String',
+    'playerId': '?PlayerId',
+    'markerId': '!MarkerId',
+  })
+
+  map_id = request['mapId']
+
+  requesting_user_id = request['requestingUserId']
+  requesting_player_id = request['requestingPlayerId']
+
+  # The requesting player should have access to the map
+  # by being an admin of the game the map belongs to or the owner of the group
+  # the map belongs to.
+  target_map = game_state.get('/maps', map_id)
+
+  map_group = game_state.get('/groups', target_map['accessGroupId'])
+  if map_group is None:
+    raise AppError("Data corruption")
+
+  map_game = game_state.get('/games', map_group['gameId'])
+  if map_game is None:
+    raise AppError("Data corruption")
+
+  if map_group['ownerPlayerId'] != requesting_player_id and \
+    requesting_user_id not in map_game['adminUsers']:
+    return respondError(401, "User does not have access")
+
+  # Basic Color verification. Should be a 6 character string composed of only
+  # hex digits.
+  marker_color_list = list(request['color'].lower())
+  if len(marker_color_list) != 6 or \
+    not all(map(lambda x: x in hex_range, marker_color_list)):
+    return respondError(400, 'Color was formatted incorrectly; should be six ' +
+        'hexadecimal digits'
+      )
+
+  marker_data = {
+    'color': request['color'].lower(),
+    'latitude': request['latitude'],
+    'longitude': request['longitude'],
+    'name': request['name'],
+    'playerId': request['playerId'],
+  }
+
+  game_state.put(
+    '/maps/%s/markers' % map_id,
+    request['markerId'],
+    marker_data),
+
+  if request['playerId'] is not None:
+    game_state.put(
+      '/playersPrivate/%s/associatedMaps/%s' % (request['playerId'], map_id),
+      request['markerId'],
+      True)
+
+def UpdatePlayerMarkers(request, game_state):
+  """Updates all markers belonging to this player to the given [latitude] and
+  [longitude].
+
+    Validation:
+      latitude must be present
+      longitude must be present
+      playerId must exist
+
+    Args:
+      latitude: Latitude of the player's location.
+      longitude: Longitude of the player's location.
+      playerId: The unique id of the player whose location should be updated
+  """
+  helpers.ValidateInputs(request, game_state, {
+    'latitude': 'Number',
+    'longitude': 'Number',
+    'playerId': 'PlayerId',
+  })
+
+  player = game_state.get('/playersPrivate', request['playerId'])
+  if 'associatedMaps' not in player:
+    return []
+  associated_maps = player['associatedMaps']
+
+  location_data = {
+    'latitude': request['latitude'],
+    'longitude': request['longitude']
+  }
+
+  results = []
+  print associated_maps
+
+  for map_to_update in associated_maps:
+    for marker in associated_maps[map_to_update]:
+      print "" + map_to_update + ": " + marker
+      patch_result = game_state.patch(
+        '/maps/%s/markers/%s' % (map_to_update, marker),
+        location_data)
+      results.append(patch_result)
+
+  return results
 
 # vim:ts=2:sw=2:expandtab
