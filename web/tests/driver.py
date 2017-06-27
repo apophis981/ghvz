@@ -7,6 +7,7 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait # available since 2.4.0
 from selenium.webdriver.support import expected_conditions as EC # available since 2.26.0
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 
 class SimpleDriver:
@@ -27,9 +28,9 @@ class SimpleDriver:
       if element is None:
         break
     if should_exist:
-      assert element is not None, "Element %s doesnt exist!" % path
+      assert element is not None, "Element %s doesn't exist!" % path
     else:
-      assert element is None, "Element %s exists!" % path
+      assert element is None or not element.is_displayed(), "Element %s exists!" % path
     return element
 
   def Click(self, path):
@@ -37,6 +38,10 @@ class SimpleDriver:
 
   def SendKeys(self, path, keys):
     self.FindElement(path).send_keys(keys)
+
+  def Backspace(self, path, number):
+    for i in range(number):
+      self.FindElement(path).send_keys(Keys.BACKSPACE)
 
   def ExpectContains(self, path, needle, should_exist=True):
     element = self.FindElement(path)
@@ -77,6 +82,9 @@ class RetryingDriver:
   def SendKeys(self, path, keys):
     return self.Retry(lambda: self.inner_driver.SendKeys(path, keys))
 
+  def Backspace(self, path, number):
+    return self.Retry(lambda: self.inner_driver.Backspace(path, number))
+
   def ExpectContains(self, path, needle, should_exist=True):
     return self.Retry(lambda: self.inner_driver.ExpectContains(path, needle, should_exist=should_exist))
 
@@ -95,7 +103,6 @@ class RetryingDriver:
           raise e
         else:
           time.sleep(sleep_durations[i])
-
 
 
 class RemoteDriver:
@@ -126,6 +133,9 @@ class RemoteDriver:
       self.MakeDriver(user, page)
     else:
       self.current_user = user
+
+  def GetGameId(self):
+    return self.game_id
 
   def MakeDriver(self, user, page):
     url = "%s/%s?user=%s&bridge=remote&signInMethod=email&email=%s&password=%s&layout=%s" % (
@@ -165,6 +175,9 @@ class RemoteDriver:
   def SendKeys(self, path, keys):
     self.drivers_by_user[self.current_user].SendKeys(path, keys)
 
+  def Backspace(self, path, number):
+    self.drivers_by_user[self.current_user].Backspace(path, number)
+
   def Quit(self):
     for driver in self.drivers_by_user.values():
       driver.Quit()
@@ -195,6 +208,9 @@ class FakeDriver:
 
     self.current_user = user
 
+  def GetGameId(self):
+    return "poptest-1" # This is the ID that fake-app.html makes for its fake game
+
   def SwitchUser(self, user):
     self.current_user = user
     self.Click([[By.ID, user + 'Button']], scoped=False)
@@ -217,6 +233,12 @@ class FakeDriver:
       self.inner_driver.SendKeys([[By.ID, self.current_user + "App"]] + path, keys)
     else:
       self.inner_driver.SendKeys(path, keys)
+
+  def Backspace(self, path, number, scoped=True):
+    if scoped:
+      self.inner_driver.Backspace([[By.ID, self.current_user + "App"]] + path, number)
+    else:
+      self.inner_driver.Backspace(path, number)
 
   def ExpectContains(self, path, needle, scoped=True, should_exist=True):
     if scoped:
@@ -242,6 +264,9 @@ class WholeDriver:
   def WaitForGameLoaded(self):
     self.FindElement([[By.NAME, "gameLoaded"]], wait_long=True)
 
+  def GetGameId(self):
+    return self.inner_driver.GetGameId()
+
   def Quit(self):
     self.inner_driver.Quit()
 
@@ -260,9 +285,11 @@ class WholeDriver:
   def SendKeys(self, path, keys):
     return self.inner_driver.SendKeys(path, keys)
 
+  def Backspace(self, path, number=1):
+    return self.inner_driver.Backspace(path, number)
+
   def ExpectContains(self, path, needle, should_exist=True):
     return self.inner_driver.ExpectContains(path, needle, should_exist=should_exist)
-
 
   # def FindElement(self, by, locator, wait_long=True):
   #   return Element(driver, FindElement(self.driver, by, locator, container = self.element, wait_long = wait_long))

@@ -1,10 +1,13 @@
 # [START app]
 import logging
+import sys
+import traceback
 import time
 import random
 
+from api_helpers import AppError, respondError
 from firebase import firebase
-from flask import Flask, jsonify, request, g
+from flask import abort, Flask, jsonify, make_response, request, g
 from google.appengine.ext import ndb
 import flask_cors
 import google.auth.transport.requests
@@ -41,31 +44,15 @@ def GetFirebase():
     g._database = db
   return db
 
-
-class AppError(Exception):
-  """Generic error class for app errors."""
-  status_code = 500
-  def __init__(self, message, status_code=None, payload=None):
-    Exception.__init__(self)
-    self.message = message
-    if status_code is None:
-      self.status_code = status_code
-    if payload is None:
-      self.payload = payload
-
-  def to_dict(self):
-    rv = dict(self.payload or ())
-    rv['message'] = self.message
-    return rv
-
-
 @app.errorhandler(api_calls.InvalidInputError)
 def HandleError(e):
+  print e.message
   """Pretty print data validation errors."""
   return 'The request is not valid. %s' % e.message, 500
 
 @app.errorhandler(AppError)
 def HandleError(e):
+  print e.message
   """Pretty print data validation errors."""
   return 'Something went wrong. %s' % e.message, 500
 
@@ -74,6 +61,7 @@ def HandleError(e):
 def HandleError(e):
   """Pretty print data validation errors."""
   logging.exception(e)
+  print e
   return '500: %r %r' % (type(e), e), 500
 
 
@@ -88,6 +76,7 @@ methods = {
   'removePlayerFromGroup': api_calls.RemovePlayerFromGroup,
   'createPlayer': api_calls.AddPlayer,
   'addGun': api_calls.AddGun,
+  'updateGun': api_calls.UpdateGun,
   'assignGun': api_calls.AssignGun,
   'updatePlayer': api_calls.UpdatePlayer,
   'addMission': api_calls.AddMission,
@@ -116,12 +105,16 @@ methods = {
   'addRequest': api_calls.AddRequest,
   'addResponse': api_calls.AddResponse,
   'addQuizQuestion': api_calls.AddQuizQuestion,
+  'updateQuizQuestion': api_calls.UpdateQuizQuestion,
   'addQuizAnswer': api_calls.AddQuizAnswer,
+  'updateQuizAnswer': api_calls.UpdateQuizAnswer,
   'addDefaultProfileImage': api_calls.AddDefaultProfileImage,
-  'createMap': api_calls.AddMap,
-  'addPoint': api_calls.AddPoint,
   'DeleteTestData': api_calls.DeleteTestData,
   'DumpTestData': api_calls.DumpTestData,
+  'createMap': api_calls.CreateMap,
+  'addMarker': api_calls.AddMarker,
+  'updatePlayerMarkers': api_calls.UpdatePlayerMarkers,
+  'executeNotifications': notifications.ExecuteNotifications,
 }
 
 
@@ -153,7 +146,7 @@ def CronNotification():
   cron_key = 'X-Appengine-Cron'
   if cron_key not in request.headers or not request.headers[cron_key]:
     return 'Unauthorized', 403
-  notifications.ExecuteNotifications(None, GetFirebase())
+  HandleSingleRequest('executeNotifications', {})
   return 'OK'
 
 @app.route('/stressTest', methods=['POST'])
@@ -217,6 +210,10 @@ def HandleBatchRequest(requests):
       body = request['body']
       print "Handling request %d: %s" % (i, method)
       results.append(CallApiMethod(method, body))
+  except:
+    print "Unexpected error:", sys.exc_info()[0]
+    traceback.print_exc()
+    raise
   finally:
     game_state.commit_transaction()
     api_mutex.release()
