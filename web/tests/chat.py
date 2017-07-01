@@ -1,3 +1,30 @@
+#!/usr/bin/python
+#
+# Copyright 2017 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""TODO: High-level file comment."""
+
+import sys
+
+
+def main(argv):
+    pass
+
+
+if __name__ == '__main__':
+    main(sys.argv)
 import setup
 from selenium.webdriver.common.by import By
 import time
@@ -28,6 +55,8 @@ try:
         except AssertionError:
           pass # This user didn't have a notification
 
+        driver.FindElement([[By.NAME, 'close-notification']], should_exist=False)
+
         if driver.is_mobile:
           driver.FindElement([[By.NAME, 'mobile-main-page'], [By.NAME, 'drawerButton']])
           driver.Click([[By.NAME, 'mobile-main-page'], [By.NAME, 'drawerButton']])
@@ -37,6 +66,7 @@ try:
 
         # Make sure drawer opens fine
         # # TODO(verdagon): known flake (on remote only? ... nope :( I'm having this trouble locally too. -aliengirl)
+        # This is probably because clicking the X on the notification didn't make it go away.
         driver.Click([[By.NAME, 'chat-card'], [By.NAME, 'chat-info-%s' % chatName]])
         driver.FindElement(
           [[By.NAME, 'chat-card'], [By.NAME, 'chat-drawer-%s' % chatName], [By.NAME, playerNames[player]]])

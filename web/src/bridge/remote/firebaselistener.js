@@ -1,3 +1,19 @@
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// TODO: High-level file comment.
+
 'use strict';
 
 window.FirebaseListener = (function () {
@@ -540,11 +556,9 @@ window.FirebaseListener = (function () {
       this.listenOnce_(`/privatePlayers/${privatePlayerId}/notifications/${notificationId}`).then((snap) => {
         let obj = new Model.Notification(notificationId, snap.val());
         this.writer.insert(this.reader.getNotificationPath(gameId, publicPlayerId, null), null, obj);
-        console.log('listened to notification!');
         this.listenForPropertyChanges_(
           snap.ref, Model.NOTIFICATION_PROPERTIES, Model.NOTIFICATION_COLLECTIONS,
           (property, value) => {
-            console.log('updating', property, 'to', value);
             this.writer.set(this.reader.getNotificationPath(gameId, publicPlayerId, notificationId).concat([property]), value);
           });
       });
@@ -560,8 +574,30 @@ window.FirebaseListener = (function () {
           (property, value) => {
             this.writer.set(this.reader.getChatRoomPath(gameId, chatRoomId).concat([property]), value);
           });
+
+        // Only listen to anything more recent than the last 100 messages
+        // Temporary, until some day when we split /messages into its own root or something
+        let startMessageTimestamp = 0;
+        let originalMessages = snap.val().messages || [];
+        let messagesMap = snap.val().messages;
+        let messages = [];
+        for (let messageId in messagesMap) {
+          let message = messagesMap[messageId];
+          message.id = messageId;
+          messages.push(message);
+        }
+        messages.sort((a, b) => a.time - b.time);
+        if (messages.length > 100) {
+          let hundredthMostRecentMessage = messages[messages.length - 100];
+          startMessageTimestamp = hundredthMostRecentMessage.time;
+        }
+
         this.firebaseRoot.child(`/chatRooms/${chatRoomId}/messages`)
-          .on('child_added', (snap) => this.listenToChatRoomMessage_(gameId, chatRoomId, snap.getKey()));
+          .on('child_added', (snap) => {
+            if (snap.val().time >= startMessageTimestamp) {
+              this.listenToChatRoomMessage_(gameId, chatRoomId, snap.getKey());
+            }
+          });
       });
     }
 

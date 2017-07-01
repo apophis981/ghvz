@@ -1,3 +1,30 @@
+#!/usr/bin/python
+#
+# Copyright 2017 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""TODO: High-level file comment."""
+
+import sys
+
+
+def main(argv):
+    pass
+
+
+if __name__ == '__main__':
+    main(sys.argv)
 from api_helpers import AppError, respondError
 
 import copy
@@ -501,6 +528,11 @@ def AddMission(request, game_state):
 
   game_state.put('/missions', request['missionId'], mission_data)
   game_state.put('/games/%s/missions' % request['gameId'], request['missionId'], True)
+
+  mission_id = request['missionId']
+  access_group_id = request['accessGroupId']
+  for public_player_id in helpers.GetPublicPlayerIdsInGroup(game_state, access_group_id):
+    AddMissionMembership(game_state, public_player_id, mission_id)
 
 
 def DeleteMission(request, game_state):
@@ -1019,19 +1051,45 @@ def AddPlayerToGroupInner(game_state, group_id, public_player_to_add_id):
   if group['allegianceFilter'] != 'none' and group['allegianceFilter'] != public_player['allegiance']:
     raise InvalidInputError('Player does not match group\'s allegiance filter!')
 
-  private_player_to_add_id = helpers.GetPrivatePlayerId(game_state, public_player_to_add_id)
-
   game_state.put('/groups/%s/players' % group_id, public_player_to_add_id, True)
 
-  chats = helpers.GroupToChats(game_state, group_id)
-  for chat in chats:
-    game_state.put('/privatePlayers/%s/chatRoomMemberships' % private_player_to_add_id, chat, {
-      'isVisible': True,
-    })
+  for chat_room_id in helpers.GroupToChats(game_state, group_id):
+    AddChatRoomMembership(game_state, public_player_to_add_id, chat_room_id, True)
 
-  missions = helpers.GroupToMissions(game_state, group_id)
-  for mission in missions:
-    game_state.put('/privatePlayers/%s/missionMemberships' % private_player_to_add_id, mission, True)
+  for mission_id in helpers.GroupToMissions(game_state, group_id):
+    AddMissionMembership(game_state, public_player_to_add_id, mission_id)
+
+
+def AddChatRoomMembership(game_state, public_player_id, chat_room_id, is_visible):
+  private_player_id = helpers.GetPrivatePlayerId(game_state, public_player_id)
+  game_state.put('/privatePlayers/%s/chatRoomMemberships' % private_player_id, chat_room_id, {
+    'isVisible': is_visible,
+  })
+
+
+def AddMissionMembership(game_state, public_player_id, mission_id):
+  private_player_id = helpers.GetPrivatePlayerId(game_state, public_player_id)
+  game_state.put('/privatePlayers/%s/missionMemberships' % private_player_id, mission_id, True)
+
+
+def UpdateChatRoomMembership(request, game_state):
+  helpers.ValidateInputs(request, game_state, {
+    'gameId': 'GameId',
+    'chatRoomId': 'ChatRoomId',
+    'actingPlayerId': 'PublicPlayerId',
+    'isVisible': '|Boolean',
+  })
+
+  acting_public_player_id = request['actingPlayerId']
+  acting_private_player_id = helpers.GetPrivatePlayerId(game_state, acting_public_player_id)
+  chat_room_id = request['chatRoomId']
+
+  patch_data = {}
+  if 'isVisible' in request:
+    patch_data['isVisible'] = request['isVisible']
+
+  game_state.patch('/privatePlayers/%s/chatRoomMemberships/%s' % (acting_private_player_id, chat_room_id), patch_data)
+
 
 def RemovePlayerFromGroup(request, game_state):
   """Remove a player from a group.

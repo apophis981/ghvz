@@ -1,3 +1,30 @@
+#!/usr/bin/python
+#
+# Copyright 2017 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""TODO: High-level file comment."""
+
+import sys
+
+
+def main(argv):
+    pass
+
+
+if __name__ == '__main__':
+    main(sys.argv)
 """DB helper methods."""
 
 
@@ -325,15 +352,18 @@ def GetValueWithPropertyEqualTo(game_state, property, key, target):
   return values
 
 
+def GetPublicPlayerIdsInGroup(game_state, group_id):
+  if not group_id:
+    return []
+  players = game_state.get('/groups/%s' % group_id, 'players')
+  if not players:
+    return []
+  return players.keys()
+
 def GetPlayerNamesInChatRoom(game_state, chatroom_id):
   names = {}
   group_id = game_state.get('/chatRooms/%s' % chatroom_id, 'accessGroupId')
-  if not group_id:
-    return names
-  players = game_state.get('/groups/%s' % group_id, 'players')
-  if not players:
-    return names
-  for player in players.keys():
+  for player in GetPublicPlayerIdsInGroup(game_state, group_id):
     name = game_state.get('/publicPlayers/%s' % player, 'name')
     if not name:
       continue

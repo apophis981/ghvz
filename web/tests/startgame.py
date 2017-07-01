@@ -1,3 +1,30 @@
+#!/usr/bin/python
+#
+# Copyright 2017 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""TODO: High-level file comment."""
+
+import sys
+
+
+def main(argv):
+    pass
+
+
+if __name__ == '__main__':
+    main(sys.argv)
 import setup
 from selenium.webdriver.common.by import By
 
@@ -15,13 +42,15 @@ try:
     [[By.ID, 'stunTimerInput'], [By.TAG_NAME, 'input']], '60')
   # Set game start time to sometime in the past
   driver.Backspace([[By.ID, 'form-section-start-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], 4)
-  driver.SendKeys([[By.ID, 'form-section-start-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], "2017")
-  driver.Backspace([[By.ID, 'form-section-start-time'],[By.ID, 'month'],[By.TAG_NAME, 'input']])
-  driver.SendKeys([[By.ID, 'form-section-start-time'],[By.ID, 'month'],[By.TAG_NAME, 'input']], "1")
-  driver.Backspace([[By.ID, 'form-section-start-time'],[By.ID, 'day'],[By.TAG_NAME, 'input']], 2)
-  driver.SendKeys([[By.ID, 'form-section-start-time'],[By.ID, 'day'],[By.TAG_NAME, 'input']], "1")
-  driver.Backspace([[By.ID, 'form-section-start-time'],[By.ID, 'time'],[By.TAG_NAME, 'input']], 6)
-  driver.SendKeys([[By.ID, 'form-section-start-time'],[By.ID, 'time'],[By.TAG_NAME, 'input']], "1:23am")
+  driver.SendKeys([[By.ID, 'form-section-start-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], "2016")
+
+  # Set the declare resistance and declare horde end times to sometime in the future
+  # driver.Backspace([[By.ID, 'form-section-declare-resistance-end-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], 4)
+  # driver.SendKeys([[By.ID, 'form-section-declare-resistance-end-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], "2018")
+
+  # driver.Backspace([[By.ID, 'form-section-declare-horde-end-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], 4)
+  # driver.SendKeys([[By.ID, 'form-section-declare-horde-end-time'],[By.ID, 'year'],[By.TAG_NAME, 'input']], "2018")
+
   driver.Click([[By.ID, 'gameForm'], [By.ID, 'done']])
   
   driver.WaitForGameLoaded()
@@ -61,10 +90,13 @@ try:
   driver.Click([[By.NAME, 'declareAllegiance']])
   driver.Click([[By.NAME, 'joinGameStartingZombiePage'], [By.NAME, 'option0']])
   driver.Click([[By.NAME, 'joinGameSecretZombiePage'], [By.NAME, 'option1']])
-  driver.Click([[By.NAME, 'startQuizPage'], [By.NAME, 'offWeGo']]) # TODO - at some point we might need ot put the quiz in here
-  driver.Click([[By.NAME, 'submitJoinGame']])
+  driver.Click([[By.NAME, 'startQuizPage'], [By.NAME, 'offWeGo']])
+
+  driver.Click([[By.TAG_NAME, 'ghvz-declare-page'], [By.NAME, 'submitJoinGame']])
 
   # Player sees their lifecode and allegiance
+  if driver.is_mobile:
+    driver.Click([[By.NAME, 'mobile-main-page'], [By.NAME, 'drawerButton']])
   driver.Click([[By.NAME, 'drawerMy Profile']])
   driver.ExpectContains([[By.NAME, 'status']], 'Alive')
   driver.ExpectContains([[By.NAME, 'lifecode']], 'codefor-life-1')
