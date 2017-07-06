@@ -1,3 +1,18 @@
+<!--
+  Copyright 2017 Google Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -9,7 +24,7 @@
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 <script type="text/javascript">google.charts.load('current', {'packages':['corechart']});</script>
 
-<script src="https://www.gstatic.com/firebasejs/3.7.6/firebase.js"></script>
+<script src="https://www.gstatic.com/firebasejs/4.1.2/firebase.js"></script>
 
 <script src="/bower_components/webcomponentsjs/webcomponents.js"></script>
 <!-- <script>
@@ -24,6 +39,7 @@
 <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
 <link rel="import" href="/bower_components/iron-icons/image-icons.html">
 <link rel="import" href="/bower_components/iron-icons/social-icons.html">
+<link rel="import" href="/bower_components/iron-icons/hardware-icons.html">
 <link rel="import" href="/bower_components/iron-icons/device-icons.html">
 <link rel="import" href="/bower_components/iron-icons/editor-icons.html">
 <link rel="import" href="/bower_components/iron-icons/maps-icons.html">
@@ -85,6 +101,7 @@
 <script src="/src/utils/gatedwriter.js"></script>
 <script src="/src/utils/cloningwriter.js"></script>
 <script src="/src/utils/simplewriter.js"></script>
+<script src="/src/utils/collectingwriter.js"></script>
 <script src="/src/utils/observablewriter.js"></script>
 <script src="/src/utils/teewriter.js"></script>
 <script src="/src/utils/batchingwriter.js"></script>
@@ -112,6 +129,7 @@
 <link rel="import" href="/src/admin/mobile-admin.html">
 <link rel="import" href="/src/app/app.html">
 <link rel="import" href="/src/app/desktop-app.html">
+<link rel="import" href="/src/app/game-page.html">
 <link rel="import" href="/src/app/player-selector.html">
 <link rel="import" href="/src/app/display-game-page.html">
 <link rel="import" href="/src/app/display-page.html">
@@ -121,11 +139,13 @@
 <link rel="import" href="/src/app/root-app.html">
 <link rel="import" href="/src/chat/chat-info-actions.html">
 <link rel="import" href="/src/chat/chat-info-drawer.html">
+<link rel="import" href="/src/chat/chat-location.html">
 <link rel="import" href="/src/chat/chat-page.html">
 <link rel="import" href="/src/chat/chat-room-list.html">
 <link rel="import" href="/src/chat/chat-room-name-label.html">
 <link rel="import" href="/src/chat/chat-room-settings.html">
 <link rel="import" href="/src/chat/chat-room.html">
+<link rel="import" href="/src/chat/static-map.html">
 <link rel="import" href="/src/chat/player-avatar.html">
 <link rel="import" href="/src/declare/declare-dashlet.html">
 <link rel="import" href="/src/declare/declare-page.html">
@@ -154,8 +174,8 @@
 <link rel="import" href="/src/lookup/group-field.html">
 <link rel="import" href="/src/lookup/lookup.html">
 <link rel="import" href="/src/lookup/player-field.html">
-<link rel="import" href="/src/lookup/player-label.html">
-<link rel="import" href="/src/lookup/player-lookup.html">
+<link rel="import" href="/src/lookup/player-dialog.html">
+<link rel="import" href="/src/ui/player-label.html">
 <link rel="import" href="/src/main/desktop-main.html">
 <link rel="import" href="/src/main/main-page.html">
 <link rel="import" href="/src/main/mobile-main.html">
@@ -168,11 +188,13 @@
 <link rel="import" href="/src/notifications/notification-full.html">
 <link rel="import" href="/src/notifications/notification-preview.html">
 <link rel="import" href="/src/notifications/notifications-page.html">
+<link rel="import" href="/src/notifications/expandable-notification.html">
 <link rel="import" href="/src/notifications/notifications.html">
 <link rel="import" href="/src/notifications/unseen-notifications.html">
 <link rel="import" href="/src/playertable/player-row.html">
 <link rel="import" href="/src/playertable/player-table.html">
 <link rel="import" href="/src/profile/profile-page.html">
+<link rel="import" href="/src/profile/reward-category.html">
 <link rel="import" href="/src/registration/game-registration.html">
 <link rel="import" href="/src/interview/multi-choice-page.html">
 <link rel="import" href="/src/interview/multiple-choice.html">

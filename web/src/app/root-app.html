@@ -1,3 +1,18 @@
+<!--
+  Copyright 2017 Google Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <dom-module id="ghvz-root-app">
 <script>
   // Not sure why this HTMLImports.whenReady is really needed.
@@ -16,9 +31,12 @@
                 window.location.hostname.includes("127.0.0.1")) {
               defaultBridgeType = 'fake';
             }
+            if (window.location.hostname.includes("playhvz.com")) {
+              defaultBridgeType = 'remote';
+            }
             var bridgeType = Utils.getParameterByName('bridge', defaultBridgeType);
             if (bridgeType != 'fake' && bridgeType != 'remote') {
-              alert("bridgeType must either be 'fake' or 'remote'! Falling back to fake.");
+              alert("'bridge' must either be 'fake' or 'remote'! Falling back to fake.");
               bridgeType = 'fake';
             }
             return bridgeType;
@@ -47,6 +65,12 @@
           if (ajaxRequest.readyState == XMLHttpRequest.DONE) {
             let config;
             try {
+              if (ajaxRequest.status == 404) {
+                throw "Couldn't find config.json! See README.md for steps on setting up!";
+              }
+              if (ajaxRequest.status != 200) {
+                throw "Unknown error getting config.json.";
+              }
               config = JSON.parse(ajaxRequest.responseText);
 
               if (!('backendUrl' in config)) {
@@ -56,13 +80,15 @@
                 throw "Couldn't find firebaseConfig!"
               }
 
-              this.config = config;
+              this.async(() => {
+                this.config = config;
+              });
 
             } catch (e) {
               console.error("Got exception:", e);
               console.error("Received config response:", ajaxRequest.responseText);
               console.error("Attempted parsed json:", config);
-              alert("Invalid config.json! Must be well formed, and contain backendUrl and firebaseConfig! See console for the received response.");
+              alert("Problems getting config: " + e);
             }
           }
         };
@@ -79,7 +105,7 @@
 </style>
 <template>
   <template is="dom-if" if="[[isRealEnv(bridgeType)]]">
-    <ghvz-real-app config="[[config]]"></ghvz-real-app>
+    <ghvz-real-app id="realApp" config="[[config]]"></ghvz-real-app>
   </template>
   <template is="dom-if" if="[[isFakeEnv(bridgeType)]]">
     <ghvz-fake-app config="[[config]]"></ghvz-fake-app>

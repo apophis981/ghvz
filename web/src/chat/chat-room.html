@@ -1,3 +1,18 @@
+<!--
+  Copyright 2017 Google Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <dom-module id="ghvz-chat-room">
   <script>
     // Not sure why this HTMLImports.whenReady is really needed.
@@ -40,6 +55,16 @@
             type: Boolean,
             value: false,
           },
+
+          locationUploadEnabled: {
+            type: Boolean,
+            value: true,
+          },
+
+          imageUploadEnabled: {
+            type: Boolean,
+            value: false,
+          },
         },
 
         listeners: {
@@ -48,17 +73,12 @@
 
         observers: [
           'onChatRoomIdChange_(chatRoomId, game.chatRooms, game.chatRoomsById)',
-          'onChatRoomChange_(chatRoom)',
           'onChatRoomNameChange_(chatRoom.name, isAttached)',
           'onMessageReceived_(chatRoom.messages.length)',
         ],
 
-        locationEnabled(isMobile) {
-          return isMobile && false;
-        },
-
-        imageUploadEnabled() {
-          return false;
+        locationUploadEnabled_(isMobile, locationUploadEnabled) {
+          return isMobile && locationUploadEnabled;
         },
 
         attached: function() {
@@ -69,11 +89,8 @@
         onChatRoomIdChange_(chatRoomId) {
           assert(this.game.chatRoomsById[chatRoomId]);
           this.$.chatRoomSelector.select(this.game.chatRoomsById[chatRoomId]);
-        },
-
-        onChatRoomChange_: function() {
+          this.hideChatInfo();
           this.previousMessagePlayerId = "";
-          this.chatInfoVisible = false;
         },
 
         onChatRoomNameChange_: function() {
@@ -151,6 +168,7 @@
             this.fire('ghvz-set-path', {
               inGame: true,
               path: ['profile', playerId],
+              replace: false,
             });
           }
         },
@@ -202,12 +220,95 @@
           this.$.actions.executeAction(e);
         },
 
+        /*
+        ######
+        */
+        isSenderCurrentPlayer_(senderId, currentPlayerId) {
+          return senderId == currentPlayerId;
+        },
+
+        isReceiveUnreadRequest_(request, response, currentPlayerId) {
+          return (request.playerId == currentPlayerId) && (request.response ==null);
+        },
+
+        countRespondPlayer_(requests){
+          let count=0;
+          for(let i=0; i<requests.length; i++){
+            if(requests[i].response != null)
+              count++;
+          }
+          return count;
+        },
+
+        notEveryPlayerRespond_(requests){
+           let count=0;
+          for(let i=0; i<requests.length; i++){
+            if(requests[i].response != null)
+              count++;
+          }
+          return count<requests.length;
+        },
+
+        getNoRespondPlayer_(requests){
+          let players="";
+          for(let i=0; i<requests.length; i++){
+            if(requests[i].response == null)
+              players += requests[i].playerId+",";
+          }
+          return players.substring(0,players.length-1);
+        },
+
+        isRequestAck_(requestCategoryType){
+          return requestCategoryType=="ack";
+        },
+
+        isResponseNull_(response){
+          return response==null;
+        },
+
+        acknowledge: function(e){
+          this.bridge.addResponse({
+            gameId: this.game.id,
+            requestId: e.model.request.id,
+            text: null,
+          });
+        },
+
+        sendAckText: function(e){
+          this.bridge.addResponse({
+            gameId: this.game.id,
+            requestId: e.model.request.id,
+            text: e.target.previousSibling.value,
+          });
+        },
+
+        deleteAck: function(e){
+          this.bridge.updateRequestCategory({
+            gameId: this.game.id,
+            requestCategoryId: e.model.requestCategory.id,
+            dismissed: true,
+          });
+        },
+
+        /**
+        * Submit text on 'enter', allow shift+enter to insert a new line in
+        * the text field.
+        */
+        checkForEnterTextRequest_: function(e) {
+         if (e.keyCode === 13 && !e.shiftKey) {
+            e.preventDefault();
+            debugger;
+            e.target.parentNode.parentNode.parentNode.parentNode.nextSibling.click();
+          }
+        },
+
         sendImage_() {
           console.log('not implemented');
         },
 
-        sendCurrentLocation_() {
-          console.log('not implemented');
+        displayContent_(messageObject) {
+          console.log(message);
+
         },
       });
     });
@@ -218,7 +319,7 @@
       flex-direction: column;
     }
     :host[small] {
-      max-height: 400px;
+      height: 400px;
     }
     paper-button.send {
       background-color: rgba(135, 206, 250, .5);
@@ -228,6 +329,11 @@
     }
     .conversation-container {
       flex-grow: 1;
+      overflow-y: scroll;
+      padding: 8px;
+    }
+    .ack-container {
+      flex-grow: 0;
       overflow-y: scroll;
       padding: 8px;
     }
@@ -296,7 +402,7 @@
       background-position: center center;
       border: 2px solid green;
     }
-    .message-text {
+    .message-bubble {
       border-radius: 16px;
       margin-bottom: 4px;
       overflow-wrap: break-word;
@@ -317,16 +423,17 @@
     .message-from-other .message-text-container {
       flex-direction: row-reverse;
     }
-    .message-from-me .message-text {
+    .message-from-me .message-bubble {
       align-self: flex-end;
       background-color: rgba(135, 206, 250, .4);
     }
-    .message-from-other .message-text {
+    .message-from-other .message-bubble {
       align-self: flex-start;
       background-color: lightgrey;
     }
-    .icon-button {
+    .multimedia-option {
       color: dodgerblue;
+      flex-grow: 0;
     }
     .text-input {
       display: flex;
@@ -339,8 +446,13 @@
       padding-right: 16px;
       word-break: break-all;
     }
+    .text-request { display: flex; }
+    .text-request-label {display: block; flex-grow: 1;}
+    .text-request-input {display: block; flex-shrink: 0;}
+    #forWebdriver { height: 1px; }
   </style>
   <template>
+  <!-- -->
     <array-selector id="chatRoomSelector" items="[[game.chatRooms]]" selected="{{chatRoom}}"></array-selector>
     <array-selector id="playerSelector" items="[[game.players]]" multi selected="{{selectedPlayers}}"></array-selector>
 
@@ -348,24 +460,76 @@
       id="info" 
       icon="icons:info-outline" 
       on-tap="toggleChatInfo_"
-      name$="icon-[[chatRoom.name]]">
+      name$="chat-info-[[chatRoom.name]]">
     </paper-icon-button>
 
     <!-- For webdrivers -->
-    <div name$="ChatRoom: [[chatRoom.name]]"></div>
+    <div id="forWebdriver" name$="ChatRoom: [[chatRoom.name]]"></div>
+
+    <div id="ackContainer" class="ack-container" name$="[[chatRoom.name]]">
+      <template is="dom-repeat" items="[[chatRoom.requestCategories]]" as="requestCategory">
+        <template is="dom-if" if="[[!requestCategory.dismissed]]">
+          <template is="dom-if" if="[[isSenderCurrentPlayer_(requestCategory.playerId, currentPlayer.id)]]">
+              <div class="view">
+                <label>"[[requestCategory.text]]" has been responsed by <b>[[countRespondPlayer_(requestCategory.requests, requestCategory.requests.*)]]/[[requestCategory.requests.length]]</b></label>
+                <template is="dom-if" if="[[notEveryPlayerRespond_(requestCategory.requests, requestCategory.requests.*)]]">
+                  <label>, the no responde player(s) are <b>[[getNoRespondPlayer_(requestCategory.requests, requestCategory.requests.*)]]</b></label>
+                 </template>
+                <template is="dom-if" if="[[!isRequestAck_(requestCategory.type)]]">
+                  <template is="dom-repeat" items="[[requestCategory.requests]]" as="request">
+                    <template is="dom-if" if="[[!isResponseNull_(request.response)]]">
+                      <label><p><b>[[request.playerId]]</b> responds <b>"[[request.response.text]]"</b></p></label>
+                    </template>
+                  </template>
+                </template>
+
+                <paper-button on-click="deleteAck">Delete</paper-button>
+              </div>
+          </template>
+          <template is="dom-if" if="[[!isSenderCurrentPlayer_(requestCategory.playerId, currentPlayer.id)]]">
+            <template is="dom-repeat" items="[[requestCategory.requests]]" as="request">
+              <template is="dom-if" if="[[isReceiveUnreadRequest_(request, request.response, currentPlayer.id)]]">
+                  <template is="dom-if" if="[[isRequestAck_(requestCategory.type)]]">
+                    <div class="view">
+                      <label>[[requestCategory.playerId]] sends you an ACK: <b>"[[requestCategory.text]]"</b></label>
+                      <b hidden>[[request.time]]</b>
+                      <paper-button on-click="acknowledge">ACK</paper-button>
+                    </div>
+                  </template>
+                  <template is="dom-if" if="[[!isRequestAck_(requestCategory.type)]]">
+                    <div class="text-request">
+                      <p hidden>[[request.time]]</p>
+                      <label class="text-request-label">[[requestCategory.playerId]] sends you a question: <b>"[[requestCategory.text]]"</b></label>
+                      <paper-input class="text-request-input" on-keydown="checkForEnterTextRequest_" type="string" label="Answer"></paper-input><paper-button id="textRequestSend" raised on-click="sendAckText">Done</paper-button>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </template>
+          </template>
+        </template>
+      </template>
+    </div>
 
     <div id="conversationContainer" class="conversation-container">
       <template is="dom-repeat" items="[[chatRoom.messages]]">
         <div name$="message-[[chatRoom.name]]-[[item.message]]"
           class$="[[computeMessageDisplayClass_(item.playerId, currentPlayer.id)]] [[displaySenderInfo(item.playerId)]]">
           <div class="display-message">
-            <div 
-              class="player-name">
+            <div class="player-name">
               [[getName_(item.playerId, game.players.length)]]
             </div>
             <div class="message-text-container">
-              <div 
-                class="message-text">[[item.message]]</div>
+              <template is="dom-if" if="[[item.message]]">
+                <div class="message-bubble">[[item.message]]</div>
+              </template>
+              <template is="dom-if" if="[[item.location]]">
+                <ghvz-static-map 
+                  class="message-bubble"
+                  latitude="[[item.location.latitude]]"
+                  longitude="[[item.location.longitude]]">
+                </ghvz-static-map>
+              </template>
               <paper-tooltip position="top" animation-delay="0">
                 [[getTime_(item.time)]]
               </paper-tooltip>
@@ -394,21 +558,22 @@
           on-keydown="checkForEnter_">
         </paper-textarea>
       </div>
-      <template is="dom-if" if="[[imageUploadEnabled()]]">
+      <template is="dom-if" if="[[imageUploadEnabled]]">
         <paper-icon-button
-          class="icon-button"
+          class="multimedia-option"
           icon="image:photo"
           title="Send image"
           on-click="sendImage_">
         </paper-icon-button>
       </template>
-      <template is="dom-if" if="[[locationEnabled(isMobile)]]">
-        <paper-icon-button
-          class="icon-button"
-          icon="maps:my-location"
-          title="Send current location"
-          on-click="sendCurrentLocation_">
-        </paper-icon-button>
+      <template is="dom-if" if="[[locationUploadEnabled_(isMobile, locationUploadEnabled)]]">
+        <ghvz-chat-location
+          class="multimedia-option"
+          bridge="[[bridge]]"
+          game="[[game]]"
+          player="[[currentPlayer]]"
+          chat-room-id="[[chatRoomId]]">
+        </ghvz-chat-location>
       </template>
       <paper-button 
         class="send"
@@ -440,6 +605,7 @@
       bridge="[[bridge]]"
       game="[[game]]"
       player-id="[[currentPlayer.id]]"
+      is-admin="[[isAdmin]]"
       chat-room="[[chatRoom]]">
     </ghvz-chat-info-actions>
   </template>

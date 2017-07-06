@@ -1,3 +1,19 @@
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// TODO: High-level file comment.
+
 
 function newPromise() {
   let savedResolve, savedReject;
@@ -12,15 +28,15 @@ class NormalRequester {
   constructor(serverUrl) {
     assert(serverUrl);
     this.serverUrl = serverUrl;
-    this.userToken = null;
+    this.userIdJwt = null;
     this.userId = null;
     this.playerId = null;
     this.waitingRequests = [];
     this.openRequestPromise = Promise.resolve(null);
   }
-  setRequestingUserTokenAndId(userToken, userId) {
+  setRequestingUserIdAndJwt(userIdJwt, userId) {
     this.userId = userId;
-    this.userToken = userToken;
+    this.userIdJwt = userIdJwt;
   }
   setRequestingPlayerId(playerId) {
     this.playerId = playerId;
@@ -29,7 +45,7 @@ class NormalRequester {
   sendRequest(method, body) {
     return new Promise((resolve, reject) => {
       body = Utils.copyOf(body);
-      body.requestingUserToken = 'ohgodwhatisthis';//this.userToken;
+      body.requestingUserIdJwt = this.userIdJwt;
       if (!('requestingUserId' in body))
         body.requestingUserId = this.userId;
       if (!('requestingPlayerId' in body))
@@ -85,6 +101,7 @@ class NormalRequester {
         }
       }
     } else {
+      alert('There was an error with your request: ' + ajaxRequest.responseText);
       for (let i = 0; i < requests.length; i++) {
         requests[i].reject(ajaxRequest.responseText);
       }

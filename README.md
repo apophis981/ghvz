@@ -1,8 +1,37 @@
+Copyright 2017 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+Copyright 2017 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+This is not an official Google product.
+
 # Humans vs Zombies
-Full stack solution leveraging firebase, polymer, and app engine (NodeJS) to create a live action game. Learn more at https://humansvszombies.org/
+Full stack solution leveraging Firebase, Polymer, and a Python Flask server on App Engine to create a live action game. Learn more at https://humansvszombies.org/
 
 ## Contributing
-Pull requests very welcome and encouraged, to help you get started we have broken it down to the level you want to test against.
+Pull requests very welcome and encouraged, to help you get started we have broken it down to the level you want to test against. As mentioned in CONTRIBUTING.md, we do need you to submit a CLA first, but that should be an easy process.
 
 ## Local Development
 
@@ -10,15 +39,21 @@ You may run against the fake JS server (do nothing), run against production, or 
 
 ### Quick Start
 
-Clone this project and follow the setup section if you are missing any dependencies 
+Clone this project and follow the setup section if you are missing any dependencies
 
 ```bash
 cd web
 npm install
 ./node_modules/firebase-tools/bin/firebase login
 ./node_modules/firebase-tools/bin/firebase use --add trogdors-29fa4
+```
+
+Copy the first relevant part of web/config_.json to web/config.json (i.e., remove the underscore)
+
+```
 npm start
 ```
+
 Visit [`localhost:5000`](localhost:5000)
 
 Stop your webserver via Ctrl-C to abort
@@ -37,7 +72,7 @@ These are one time firebase setup instructions along with backend configuration
 #### Front End (/web)
 1. [Create a firebase project](https://console.firebase.google.com/?pli=1)
 1. Open authentication using the left hand pane and enable (1) Google and (2) Email/Password
-1. Open the users tab, create 8 users listed below 
+1. Open the users tab, create 8 users listed below
 
    Use the same password (**write it down**, you'll need it if you want to run webdrivers)
 1. Hit the copy button next to zella's name and put that into your config.py and config.json
@@ -61,13 +96,12 @@ These are one time firebase setup instructions along with backend configuration
 
 #### Back End (/backend)
 1. Open your Firebase account page and use the gear icon to select the settings
-1. Copy your project ID to app.yaml in your /backend folder
 1. Make a copy of config\_.py and name it config.py (remove the underscore)
 1. Back in Firebase copy your webconfig and place a copy into your newly created config.py
 1. Click on the Service Accounts tab and navigate to the Database Secrets sub tab.
 1. Show your the secrets key and copy it over for the FIREBASE_SECRET value in config.py.
 1. You can now run your server with `dev_appserver.py app.yaml`
-1. You can also navigate your front end to use this server with [localhost:5000/?env=localprod](localhost:5000/?env=localprod)
+1. You can also navigate your front end to use this server with [localhost:5000/?bridge=remote](localhost:5000/?bridge=remote) as long as you setup your front end config's backend URL (config.json)
 
 ## Setup
 
@@ -85,6 +119,27 @@ Add this to your ~/.bash_profile: `export PATH=$PATH:[ghvz folder path here]/web
 #### Linux - webdriver tests
 
 (this doesnt work yet because nobody's checked in linuxdrivers, talk to chewys or verdagon if you want to run on linux)
+
+##### Temporary Workaround
+
+First, create the linuxdrivers folder:
+```bash
+cd web/tests
+mkdir linuxdrivers
+
+```
+
+Download the latest version of chromedriver [here](https://sites.google.com/a/chromium.org/chromedriver/downloads).
+Unzip the contents to
+`web/tests/linuxdrivers`
+
+Make chromedriver executable
+```bash
+# in web/tests/linuxdrivers
+chmod +x chromedriver
+
+```
+
 
 Add this to your ~/.bashrc: `export PATH=$PATH:[ghvz folder path here]/web/tests/linuxdrivers` for example: `export PATH=$PATH:/Users/verdagon/Desktop/ghvz/web/tests/linuxdrivers`
 
@@ -155,7 +210,7 @@ To run the webdrivers:
 
 WARNING: This test will nuke our prod firebase. This is fine, everyone knows that that data could disappear at any moment. Though if two people run this test at the same time, it could fail. There's an open task on go/hvz-milestones (#201) to fix these particular inconveniences.
 
-First, get a local backend server running. Then:
+**First, get a local backend server running.** Then:
 ```bash
 cd backend/
 pip install requests

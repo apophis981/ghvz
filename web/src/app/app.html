@@ -1,3 +1,18 @@
+<!--
+  Copyright 2017 Google Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 <dom-module id="ghvz-app">
 <script>
   // Not sure why this HTMLImports.whenReady is really needed.
@@ -49,12 +64,6 @@
           type: Array,
         },
 
-        // Path, without the game/2017m in front
-        innerPath: {
-          type: Array,
-          computed: 'computeInnerPath_(path)',
-        },
-
         isMobile: {
           type: Boolean,
           value: () => Utils.isMobile() || Utils.getParameterByName('layout') == 'mobile',
@@ -82,29 +91,17 @@
         'hideSignInButton_(userId)',
         'hideSignInButton_(user)',
         'navigateEmptyPathToGamesPath_(path)',
-        'autoChooseGameToPutIntoPath_(path, database.games.length, user.players.length)',
-        'loadGameInPath_(path, userId, gameId, database.games.length, user.players.length)',
+        'autoChooseGameToPutIntoPath_(path, database.games.length, user.publicPlayers.length)',
+        'loadGameInPath_(path, userId, gameId, database.games.length, user.publicPlayers.length)',
         'listenToGame_(game, game.admins.length, playerId)',
-        'selectPlayer_(user, game, user.players.length)',
+        'selectPlayer_(user, game, user.publicPlayers.length)',
         'navigateGameToDashboard_(path)',
       ],
 
       listeners: {
         'ghvz-set-path': 'handleSetPath_',
         'ghvz-sign-out': 'signOut_',
-        'ghvz-open-drawer': 'openDrawer_',
-        'ghvz-close-drawer': 'closeDrawer_',
       //   'ghvz-select-game': 'handleSelectGame_',
-      },
-
-      computeInnerPath_(path) {
-        if (path.length >= 2 && path[0] == 'game') {
-          return path.slice(2);
-        } else if (path.length == 1 && path[0] == 'game') {
-          return [];
-        } else {
-          return path.slice();
-        }
       },
 
       selectUser_(userId) {
@@ -122,7 +119,8 @@
           this.listeningToDatabase = true;
           this.bridgeListenCanceler =
               this.bridge.listenToDatabase({
-                destination: new BatchedPolymerWriter(this, 'database')
+                destination: new CollectingWriter(
+                    new BatchedPolymerWriter(this, 'database'))
               });
         }
 
@@ -143,13 +141,13 @@
       navigateEmptyPathToGamesPath_() {
         // If there's no path, then go to 'game' automatically 
         if (this.path.length == 0) {
-          this.setPath_(['game']);
+          this.setPath_(['game'], true);
         }
       },
 
       navigateGameToDashboard_() {
         if (this.path.length == 2 && this.path[0] == 'game') {
-          this.setPath_(this.path.slice().concat(['main']));
+          this.setPath_(this.path.slice().concat(['main']), true);
         }
       },
 
@@ -158,16 +156,19 @@
       },
 
       setPath_(path, replace) {
+        assert(replace !== undefined);
         // Async because sometimes we set the path in reaction to a path change
         // and polymer doesn't like changing something we're reacting to
         // (it just chooses to not fire observers/listeners for the second set)
         this.async(() => {
           assert(path instanceof Array);
-          this.path = path;
-          if (replace)
-            this.fire('ghvz-replace-url');
-          else
-            this.fire('ghvz-push-url');
+          if (!Utils.arrayShallowEquals(path, this.path)) {
+            this.path = path;
+            if (replace)
+              this.fire('ghvz-replace-url');
+            else
+              this.fire('ghvz-push-url');
+          }
         });
       },
 
@@ -175,7 +176,7 @@
         // If there's no game, auto choose one and put it in the path
         if (this.path[0] == 'game' && this.path.length == 1) {
           // They specified no game in the url. Auto choose one.
-          let userPlayer = this.user && this.user.players.slice(-1)[0];
+          let userPlayer = this.user && this.user.publicPlayers.slice(-1)[0];
           let gameId;
           if (userPlayer) {
             gameId = userPlayer.gameId;
@@ -193,9 +194,7 @@
             let trimmedGameId = gameId.slice('game-'.length);
             // Async so we dont accidentally cause calls into firebaselistener
             // while we're already reacting to something from it.
-            this.async(() => {
-              this.setPath_(['game', trimmedGameId]);
-            });
+            this.setPath_(['game', trimmedGameId], true);
           }
         }
       },
@@ -232,14 +231,14 @@
           this.bridge.listenToGameAsAdmin({gameId: this.gameId});
         } else if (this.playerId) {
           this.listeningToGame = true;
-          this.bridge.listenToGameAsNonAdmin({gameId: this.gameId, playerId: this.playerId});
+          this.bridge.listenToGameAsPlayer({gameId: this.gameId, playerId: this.playerId});
         }
       },
 
       selectPlayer_() {
         if (this.user && this.gameId && !this.playerId) {
           // Try to figure out their player, if they have one.
-          let userPlayer = this.user.players.find(player => player.gameId == this.gameId);
+          let userPlayer = this.user.publicPlayers.find(player => player.gameId == this.gameId);
           if (userPlayer) {
             // Async so we dont accidentally cause calls into firebaselistener
             // while we're already reacting to something from it.
@@ -281,14 +280,6 @@
       //   this.bridge.signOut();
       // },
 
-      openDrawer_() {
-        this.$$("#drawer").openDrawer();
-      },
-
-      closeDrawer_() {
-        this.$$("#drawer").closeDrawer();
-      },
-
       handleSetPath_(e) {
         assert('inGame' in e.detail);
         if (e.detail.inGame) {
@@ -326,10 +317,6 @@
       //   }
       //   return [null, null, null];
       // },
-
-      computeResponsiveWidth_(isMobile) {
-        return this.isMobile ? "1000px" : null;
-      }
     });
   });
 </script>
@@ -343,9 +330,6 @@
     top: 0;
     align-items: center;
     justify-content: center;
-  }
-  div[main] {
-    overflow-y: auto;
   }
   paper-spinner {
     width: 32px;
@@ -368,13 +352,6 @@
       player="[[player]]"
       active="[[userActive]]">
   </ghvz-inactive-dialog>
-  <ghvz-unseen-notifications
-      id="notifications"
-      bridge="[[bridge]]"
-      categories-by-id="[[game.notificationCategoriesById]]"
-      categories="[[game.notificationCategories]]"
-      player="[[player]]">
-  </ghvz-unseen-notifications>
   <paper-spinner active hidden$="[[!showLoadingSpinner]]"></paper-spinner>
   <template is="dom-if" if="[[showSignInButton]]">
     <paper-button
@@ -388,53 +365,15 @@
     <ghvz-display-page
         config="[[config]]"
         bridge="[[bridge]]"
+        is-admin="[[isAdmin]]"
+        database="[[database]]"
         user="[[user]]"
+        game="[[game]]"
+        player="[[player]]"
+        player-id="[[playerId]]"
         path="[[path]]"
         is-mobile="[[isMobile]]">
     </ghvz-display-page>
-  </template>
-
-  <template is="dom-if" if="[[game]]">
-    <!-- For webdrivers -->
-    <div name="gameLoaded"></div>
-
-    <paper-drawer-panel id="drawer" disable-swipe responsive-width="[[computeResponsiveWidth_(isMobile)]]">
-      <paper-material drawer>
-        <ghvz-drawer
-            bridge="[[bridge]]"
-            is-admin="[[isAdmin]]"
-            database="[[database]]"
-            user="[[user]]"
-            game="[[game]]"
-            player="[[player]]">
-        </ghvz-drawer>
-      </paper-material>
-      <div main>
-        <template is="dom-if" if="[[!isMobile]]">
-          <ghvz-desktop-app
-              bridge="[[bridge]]"
-              is-admin="[[isAdmin]]"
-              database="[[database]]"
-              user="[[user]]"
-              game="[[game]]"
-              player="[[player]]"
-              player-id="[[playerId]]"
-              path="[[innerPath]]">
-          </ghvz-desktop-app>
-        </template>
-        <template is="dom-if" if="[[isMobile]]">
-          <ghvz-mobile-app
-              bridge="[[bridge]]"
-              is-admin="[[isAdmin]]"
-              database="[[database]]"
-              user="[[user]]"
-              game="[[game]]"
-              player="[[player]]"
-              path="[[innerPath]]">
-          </ghvz-mobile-app>
-        </template>
-      </div>
-    </paper-drawer-panel>
   </template>
 </template>
 </dom-module>

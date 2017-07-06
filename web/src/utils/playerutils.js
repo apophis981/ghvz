@@ -1,3 +1,19 @@
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// TODO: High-level file comment.
+
 
 class PlayerUtils {}
 
@@ -30,6 +46,23 @@ PlayerUtils.getDefaultProfilePic = function(name) {
 		'https://goo.gl/HcmpLi',
 		'https://goo.gl/pEjp5M',
 		'https://goo.gl/kNH2ov',
+		'https://goo.gl/gBQ1Kx',
+		'https://goo.gl/ExqDyF',
+		'https://goo.gl/Aj3pPs',
+		'https://goo.gl/TjCmuh',
+		'https://goo.gl/zxDxMU',
+		'https://goo.gl/tGCRrj',
+		'https://goo.gl/ogxpAV',
+		'https://goo.gl/QNwVag',
+		'https://goo.gl/4rC7x6',
+		'https://goo.gl/WpYtzt',
+		'https://goo.gl/eNMPd1',
+		'https://goo.gl/dEDG56',
+		'https://goo.gl/o12QaU',
+		'https://goo.gl/T3HFne',
+		'https://goo.gl/8aRqJ4',
+		'https://goo.gl/dqPjE2',
+		'https://goo.gl/cHqQwU',
 	];
 
 	let hash = Math.abs(PlayerUtils.hashName(name));

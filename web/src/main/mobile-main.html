@@ -1,3 +1,18 @@
+<!--
+  Copyright 2017 Google Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
 
 <dom-module id="ghvz-mobile-main-page">
 <script>
@@ -30,6 +45,11 @@
           computed: 'computeCanRegister_(game, player)',
         },
 
+        canDeclare: {
+          type: Boolean,
+          computed: 'computeCanDeclare_(player.allegiance)',
+        },
+
         canSelfInfect: {
           type: Boolean,
           computed: 'computeCanSelfInfect_(player.allegiance)',
@@ -39,6 +59,10 @@
       computeIsAdmin_: function(user, game) {
         let admin = game.admins.find((admin) => admin.userId == user.id);
         return !!admin;
+      },
+
+      computeCanDeclare_(allegiance) {
+        return allegiance == 'undeclared';
       },
 
       computeCanRegister_(game, player) {
@@ -86,14 +110,21 @@
       </ghvz-card>
     </template>
 
+    <template is="dom-if" if="[[canDeclare]]">
+      <ghvz-card spaced left padded>
+        <div class="header">Declare Allegiance!</div>
+        <ghvz-declare-dashlet></ghvz-declare-dashlet>
+      </ghvz-card>
+    </template>
+
     <template is="dom-if" if="[[isPlayer]]">
-      <template is="dom-if" if="[[player.canInfect]]">
-        <ghvz-card spaced>
+      <template is="dom-if" if="[[player.private.canInfect]]">
+        <ghvz-card name="infect-box" spaced>
           <div class="header">Infect</div>
           <ghvz-infect
               bridge="[[bridge]]"
-              game-id="[[game]]"
-              player-id="[[player]]">
+              game="[[game]]"
+              player-id="[[player.id]]">
           </ghvz-infect>
         </ghvz-card>
       </template>
@@ -106,7 +137,7 @@
       </ghvz-card>
 
 
-      <ghvz-card spaced>
+      <ghvz-card spaced name="next-mission-box" >
         <div class="header">Next Mission</div>
         <ghvz-next-mission
             bridge="[[bridge]]"

@@ -1,3 +1,19 @@
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// TODO: High-level file comment.
+
 'use strict';
 
 class FakeBridge {
@@ -9,7 +25,7 @@ class FakeBridge {
     var fakeServer = new FakeServer(idGenerator, this.teeWriter, new Date().getTime());
     var checkedServer = new CheckedServer(idGenerator, fakeServer, Bridge.METHODS_MAP);
     var cloningFakeSerer = new CloningWrapper(checkedServer, Bridge.METHODS);
-    var delayingCloningFakeServer = new DelayingWrapper(cloningFakeSerer, Bridge.METHODS, 100);
+    var delayingCloningFakeServer = new DelayingWrapper(cloningFakeSerer, Bridge.METHODS);
     this.server = delayingCloningFakeServer;
 
     window.fakeBridge = this;
@@ -64,7 +80,7 @@ class FakeBridge {
   listenToGameAsAdmin(gameId) {
     // Do nothing. This method is really just an optimization.
   }
-  listenToGameAsNonAdmin(gameId, playerId) {
+  listenToGameAsPlayer(gameId, playerId) {
     // Do nothing. This method is really just an optimization.
   }
   setPlayerId(playerId) {
@@ -81,23 +97,39 @@ function CloningWrapper(inner, funcNames) {
   }
 }
 
-function DelayingWrapper(inner, funcNames, delay) {
-  delay = delay || 100;
+function DelayingWrapper(inner, funcNames) {
+  let delay = Utils.getParameterByName('fakeServerDelay', 100);
+  let synchronous = delay == 'synchronous';
+
   for (const funcName of funcNames) {
     this[funcName] = function(...args) {
       // console.log('Making request', funcName, ...args);
       return new Promise((resolve, reject) => {
-        setTimeout(() => {
+        let execute = () => {
           try {
             // console.log('Recipient received request', funcName, ...args);
             const result = inner[funcName](...args);
             // console.log('Recipient responding with', result);
-            setTimeout(() => resolve(result), delay);
+            if (synchronous)
+              resolve(result);
+            else
+              setTimeout(() => resolve(result), delay);
+
           } catch (error) {
+
             console.error(error);
-            setTimeout(() => reject(error), delay);
+
+            if (synchronous)
+              reject(error);
+            else
+              setTimeout(() => reject(error), delay);
           }
-        }, delay);
+        };
+
+        if (synchronous)
+          execute();
+        else
+          setTimeout(execute, delay);
       });
     };
   }

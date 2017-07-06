@@ -1,3 +1,16 @@
+Copyright 2017 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 # Deploying the backend
 Run `bash deploy` from the `backend` directory. This creates a secrets file in
 a config directory and uses that file for deploying.
@@ -21,7 +34,6 @@ three Ionic secrets. If you mess them up, you can fix them inside either
 * `constants.py`: A small collection of constant values
 * `db_helpers.py`: Helper methods for accessing data in Firebase
 * `deploy`: Shell script to use to deploy the backend
-* `ionic.py`: Code using Ionic to deliver notifications to users
 * `notifications.py`: Code used to handle (cron-based) scheduling and sending notifications
 * `requirements.txt`: GCE - required Python libs
 * `secrets.py`: Auto-generated via the `deploy` script. DO NOT COMMIT TO GIT.
